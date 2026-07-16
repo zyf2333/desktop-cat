@@ -76,16 +76,16 @@ class PetWindow(QWidget):
 
     # ---- 生命周期 ----
     def start(self) -> None:
-        self.showFullScreen()
-        # showFullScreen 会改变 flags，重设以确保透明
-        self.setWindowFlags(
-            Qt.WindowType.FramelessWindowHint
-            | Qt.WindowType.WindowStaysOnTopHint
-            | Qt.WindowType.Tool
-        )
+        # 不用 showFullScreen()：它在 macOS 会把窗口推入独立的"全屏 Space"，
+        # 那是一个全新的黑色桌面，而不是覆盖在用户当前桌面上。
+        # 改用普通窗口 + 手动几何覆盖整个虚拟桌面 + 置顶，达到"贴在桌面上"的效果。
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self.show()
+        # 重新覆盖整个虚拟桌面（多显示器情况）
+        geo = self.screen().virtualGeometry()
+        self.setGeometry(geo)
+        self.showNormal()
+        self.raise_()
         interval_ms = int(1000 / config.RENDER_FPS)
         self._frame_timer.start(interval_ms)
         self._tracker.start()
