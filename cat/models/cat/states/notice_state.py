@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from cat import config
 from cat.core.state_machine import State
-from cat.models.cat.actions import ACTIONS
+from cat.models.cat.actions import make_action
 from cat.models.cat.states._conditions import dist_to_mouse, lost_mouse
 
 
@@ -15,7 +15,7 @@ class NoticeState(State):
 
     def on_enter(self, sprite) -> None:
         sprite.clear_action()
-        sprite.play(ACTIONS["notice"]())
+        sprite.play(make_action("notice", sprite=sprite))
 
     def update(self, sprite, dt: float, mouse_state) -> None:
         if lost_mouse(sprite, mouse_state):

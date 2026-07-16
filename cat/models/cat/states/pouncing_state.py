@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from cat import config
 from cat.core.state_machine import State
-from cat.models.cat.actions import ACTIONS
+from cat.models.cat.actions import make_action
 from cat.models.cat.states._conditions import dist_to_mouse, lost_mouse
 
 
@@ -18,7 +18,7 @@ class PouncingState(State):
         # 锁定鼠标当前位置作为扑击目标
         target = sprite.mouse_state.pos if sprite.mouse_state else (sprite.x, sprite.y)
         sprite.clear_action()
-        pounce = ACTIONS["pounce"](target)
+        pounce = make_action("pounce", sprite=sprite, target=target)
         sprite.play(pounce, on_done=lambda: self._after_pounce(sprite))
 
     def update(self, sprite, dt: float, mouse_state) -> None:
@@ -28,10 +28,16 @@ class PouncingState(State):
             self._after_pounce(sprite)
 
     def _after_pounce(self, sprite) -> None:
-        """扑击完成后：鼠标还在附近且在动 → 继续追；否则回 idle。"""
+        """扑击完成后：扑到近处且鼠标还在 → 玩弄（逗猫棒）；稍远还在动 → 追；否则回 idle。"""
         ms = sprite.mouse_state
-        if ms is not None and ms.moving and not lost_mouse(sprite, ms):
-            # 还在玩，继续追逐
+        if ms is None or lost_mouse(sprite, ms):
+            sprite.fsm.transition_to("idle")
+            return
+        d = dist_to_mouse(sprite, ms)
+        # 扑到鼠标旁边 → 进入玩弄（逗猫棒玩法）
+        if d <= config.PLAY_DIST_PX * 1.5:
+            sprite.fsm.transition_to("playing")
+        elif ms.moving:
             sprite.fsm.transition_to("chasing")
         else:
             sprite.fsm.transition_to("idle")

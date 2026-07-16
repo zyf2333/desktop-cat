@@ -18,6 +18,14 @@ MOUSE_SMOOTH_WINDOW_S = 0.3       # 速度滑动平均窗口（秒）
 ALERT_RADIUS_PX = 220             # 鼠标进入此半径且移动 → 猫警觉
 LOSE_RADIUS_PX = 420              # 鼠标移出此半径（且在追/警觉中）→ 猫困惑、放弃
 
+# ---- 二维决策阈值（距离 × 速度 → 意图）----
+PLAY_DIST_PX = 60                 # 此距离内 → 可能进入 PLAYING（玩弄）
+POUNCE_DIST_PX = 90               # 此距离内 + 鼠标快 → 直接扑
+STALK_MOUSE_SPEED_PX_S = 120      # 鼠标速度低于此 → 倾向潜行（慢目标好潜行）
+POUNCE_MOUSE_SPEED_PX_S = 800     # 鼠标速度高于此 + 近距离 → 倾向直接扑（快目标要果断）
+CHASE_TO_PLAY_PROB = 0.008        # 追逐中进入玩距的每帧转 PLAYING 概率
+STALK_TO_PLAY_PROB = 0.012        # 潜行中进入玩距的每帧转 PLAYING 概率
+
 # ---- 警觉 → 发现 ----
 ALERT_DURATION_S = (0.4, 0.8)     # 警觉持续时间（随机），之后转入发现
 NOTICE_DURATION_S = (0.3, 0.6)    # 发现持续时间，之后开始潜行/追
@@ -59,3 +67,13 @@ IDLE_SLEEP_AFTER_S = 45           # 鼠标静止超过 N 秒进入 SLEEPING
 
 # ---- 调试 ----
 DEBUG = False                     # True 时绘制猫的锚点/状态名等辅助信息
+
+# ---- 个性（默认值，启动时注入 PetSprite；多宠物可各给不同实例）----
+# 用 dict 而非直接 import Personality，避免 config 依赖 core（保持 config 纯常量）。
+PERSONALITY = {
+    "liveliness": 0.7,    # 活泼度
+    "alertness": 0.5,     # 警觉度
+    "patience": 0.6,      # 耐心
+    "playfulness": 0.6,   # 玩心
+    "curiosity": 0.5,     # 好奇心
+}

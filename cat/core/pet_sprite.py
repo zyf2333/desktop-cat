@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from .action import Action
 from .model import Model
+from .personality import Personality
 from .state_machine import StateMachine
 
 if TYPE_CHECKING:
@@ -29,6 +30,7 @@ class PetSprite:
         x: float,
         y: float,
         size_px: int,
+        personality: Optional["Personality"] = None,
     ) -> None:
         self.model: Model = model
         self.x: float = x
@@ -36,6 +38,12 @@ class PetSprite:
         self.size_px: int = size_px
         self.facing: int = 1  # +1 朝右，-1 朝左
         self.pose: Any = model.default_pose()
+
+        # 个性（per-instance）。未提供时从 config 取默认值。
+        if personality is None:
+            from cat import config  # 延迟 import 避免循环
+            personality = Personality(**config.PERSONALITY)
+        self.personality: Personality = personality.clamp()
 
         # 状态机由模型装配
         self.fsm: StateMachine = model.create_state_machine(self)
@@ -91,3 +99,31 @@ class PetSprite:
     def clear_action(self) -> None:
         """强制中止当前动作（不触发 on_done）。供状态切换时清理用。"""
         self._action = None
+
+    # ---- 点击交互（局部热区）----
+    @property
+    def hit_radius(self) -> float:
+        """点击命中半径（屏幕像素）。约 size_px 的 0.85 倍。"""
+        return self.size_px * 0.85
+
+    def contains(self, x: float, y: float) -> bool:
+        """某点是否在宠物的圆形热区内。"""
+        import math
+        return math.hypot(x - self.x, y - self.y) <= self.hit_radius
+
+    def on_click(self, x: float, y: float) -> None:
+        """被点击时的反应钩子。
+
+        第一版：被点 → 跳起 + 短暂困惑（像被吓到）。
+        未来可扩展：喂食、抚摸等不同区域的反应。
+        """
+        # 朝向点击来源
+        if x < self.x:
+            self.facing = -1
+        else:
+            self.facing = 1
+        # 中止当前动作，切到困惑（被吓一跳）
+        self.clear_action()
+        if self.fsm is not None:
+            # 睡觉时被点 → 醒来困惑
+            self.fsm.transition_to("confused")

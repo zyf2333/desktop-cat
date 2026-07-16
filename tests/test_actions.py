@@ -9,8 +9,10 @@ from __future__ import annotations
 import math
 
 from cat import config
-from cat.models.cat.actions import ACTIONS, reset_to_stand
+from cat.core.personality import Personality
+from cat.models.cat.actions import reset_to_stand
 from cat.models.cat.actions.pounce import PounceAction
+from cat.models.cat.actions.sit import SitAction
 from cat.models.cat.actions.walk import WalkAction
 from cat.models.cat.poses import CatPose
 
@@ -38,6 +40,7 @@ class FakeSprite:
         self.mouse_state = None
         self._action = None
         self.fsm = FakeFsm(self)
+        self.personality = Personality()  # 默认个性
 
     def play(self, action, on_done=None):
         action.on_done = on_done
@@ -136,7 +139,7 @@ def test_pounce_facing_locks_to_target():
 
 def test_sit_finishes_after_duration():
     sprite = FakeSprite(x=0.0, y=0.0)
-    sit = ACTIONS["sit"](duration=1.0)
+    sit = SitAction(duration=1.0)
     sprite.play(sit)
     # 推进到 duration 之后
     sprite._action.update(sprite, 1.01)
@@ -144,5 +147,43 @@ def test_sit_finishes_after_duration():
 
 
 def test_actions_registry_has_core_actions():
-    for name in ["walk", "run", "pounce", "sit", "sleep", "groom", "stretch"]:
-        assert name in ACTIONS
+    from cat.models.cat.actions import REGISTRY
+    for family in ["walk", "run", "pounce", "sit", "sleep", "groom", "stretch",
+                   "alert", "notice", "stalk", "chase", "confused"]:
+        assert family in REGISTRY, f"族 {family} 未注册"
+        assert len(REGISTRY[family]) >= 1
+
+
+def test_make_action_factory():
+    """验证 make_action 工厂能创建各族动作。"""
+    from cat.models.cat.actions import make_action
+    sprite = FakeSprite(x=0.0, y=0.0)
+    # 无参族
+    a = make_action("sit", sprite=sprite)
+    assert a.name == "sit"
+    # 带参族
+    b = make_action("walk", sprite=sprite, target=(100, 0))
+    assert b.name == "walk"
+    # 指定变体
+    c = make_action("sit", "default", sprite=sprite)
+    assert c.name == "sit"
+    # 未知族报错
+    try:
+        make_action("ghost", sprite=sprite)
+        assert False, "应抛 KeyError"
+    except KeyError:
+        pass
+
+
+def test_weighted_choice():
+    """验证加权选择表。"""
+    from cat.models.cat.actions import weighted_choice
+    table = [
+        {"family": "a", "weight": 1},
+        {"family": "b", "weight": 9},
+    ]
+    counts = {"a": 0, "b": 0}
+    for _ in range(1000):
+        counts[weighted_choice(table)["family"]] += 1
+    # b 权重 9 倍，应远多于 a
+    assert counts["b"] > counts["a"] * 3

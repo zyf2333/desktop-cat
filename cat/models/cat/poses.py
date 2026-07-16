@@ -58,5 +58,10 @@ class CatPose:
     confused: bool = False          # 困惑：问号 + 歪头 + 眨眼
     alerted: bool = False           # 警觉态：身体微紧、瞳孔追踪
 
+    # ---- 玩弄/嘴部（PLAYING 状态用）----
+    mouth: str = "smile"            # 嘴形：smile/open/lick/yawn
+    paw_raise: float = 0.0          # 单爪抬起高度 [0,1]：swat 拍打时
+    on_back: bool = False           # 是否翻身（wrestle 扭打时四脚朝天）
+
     # ---- 周期动画自驱动（drawing 用，由 model 维护）----
     breathe_phase: float = 0.0      # 呼吸相位

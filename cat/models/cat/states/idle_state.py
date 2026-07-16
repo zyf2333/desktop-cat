@@ -13,8 +13,8 @@ import random
 
 from cat import config
 from cat.core.state_machine import State
-from cat.models.cat.actions import ACTIONS, IDLE_IDLE_ACTIONS
-from cat.models.cat.states._conditions import in_alert_range
+from cat.models.cat.actions import IDLE_ACTIONS, make_action, weighted_choice
+from cat.models.cat.states._intents import Intent, decide_intent
 from cat.utils.geometry import clamp
 
 
@@ -35,9 +35,17 @@ class IdleState(State):
     def update(self, sprite, dt: float, mouse_state) -> None:
         ms = mouse_state
 
-        # ---- 状态切换判定 ----
-        # 鼠标进入警觉范围且在动 → 警觉（开始捕猎序列）
-        if in_alert_range(sprite, mouse_state):
+        # ---- 状态切换判定（用统一意图决策）----
+        intent = decide_intent(sprite, ms)
+        if intent == Intent.ALERT:
+            sprite.fsm.transition_to("alert")
+            return
+        # 鼠标极近时直接进入玩弄（idle 也可能突然被凑脸）
+        if intent == Intent.PLAY:
+            sprite.fsm.transition_to("playing")
+            return
+        if intent in (Intent.STALK, Intent.CHASE, Intent.POUNCE):
+            # 鼠标已很近且有动作意图，先警觉再行动
             sprite.fsm.transition_to("alert")
             return
         # 长时间静止 → 睡
@@ -58,13 +66,7 @@ class IdleState(State):
             if random.random() < 0.5:
                 self._start_wander(sprite)
             else:
-                name = random.choice(IDLE_IDLE_ACTIONS)
-                # sit/stretch 是独立状态；groom 进入 GroomingState
-                if name == "groom":
-                    sprite.fsm.transition_to("grooming")
-                    return
-                action_cls = ACTIONS[name]
-                sprite.play(action_cls())
+                self._start_idle_action(sprite)
             return
 
         # 没有动作且计时未到：偶尔看看四周（轻微头转）
@@ -83,5 +85,14 @@ class IdleState(State):
         # 限制在屏幕内（粗略，由 window 尺寸裁剪）
         tx = clamp(tx, 40, 4000)
         ty = clamp(ty, 40, 3000)
-        walk = ACTIONS["walk"]((tx, ty))
-        sprite.play(walk)
+        sprite.play(make_action("walk", sprite=sprite, target=(tx, ty)))
+
+    def _start_idle_action(self, sprite) -> None:
+        """按权重选一个空闲小动作播放。groom 走独立状态。"""
+        choice = weighted_choice(IDLE_ACTIONS, sprite.personality)
+        family = choice["family"]
+        if family == "groom":
+            # groom 是独立状态（被打断逻辑不同）
+            sprite.fsm.transition_to("grooming")
+            return
+        sprite.play(make_action(family, choice["variant"], sprite=sprite))

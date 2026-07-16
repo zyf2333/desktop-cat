@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from cat.core.state_machine import State
-from cat.models.cat.actions import ACTIONS
+from cat.models.cat.actions import make_action
 
 
 class GroomingState(State):
@@ -15,7 +15,7 @@ class GroomingState(State):
     def on_enter(self, sprite) -> None:
         sprite.clear_action()
         sprite.play(
-            ACTIONS["groom"](),
+            make_action("groom", sprite=sprite),
             on_done=lambda: sprite.fsm.transition_to("idle"),
         )
 

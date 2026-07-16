@@ -33,6 +33,18 @@ class CatModel(Model):
         # 尾巴自摆（轻微）
         if pose.tail_wag > 0:
             pose.tail_wag_phase = t * 6.0
+        # 自动眨眼：每 ~4 秒眨一次（仅当动作未主动设 blink 时）
+        # 用周期函数：blink_phase 在每个周期开头有短暂峰值
+        blink_cycle = t % 4.2
+        if 4.0 < blink_cycle < 4.18:
+            # 眨眼持续约 0.18s，三角形包络
+            local = (blink_cycle - 4.0) / 0.18
+            auto_blink = 1.0 - abs(local * 2 - 1)
+        else:
+            auto_blink = 0.0
+        # 只在动作没有主动设 blink（blink==0）时叠加自动眨眼
+        if pose.blink < 0.1:
+            pose.blink = auto_blink
         draw_cat(painter, pose, facing, t, size_px=size_px)
 
     def create_state_machine(self, sprite: "PetSprite") -> StateMachine:

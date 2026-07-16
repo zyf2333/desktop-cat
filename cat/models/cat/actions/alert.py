@@ -18,11 +18,14 @@ class AlertAction(Action):
 
     def __init__(self, duration: float | None = None) -> None:
         super().__init__()
-        self._duration = duration if duration is not None else random.uniform(*config.ALERT_DURATION_S)
+        self._duration = duration
         self._t = 0.0
 
     def start(self, sprite) -> None:
         super().start(sprite)
+        # 个性影响时长：警觉度高的猫反应快（时长短）
+        base = self._duration if self._duration is not None else random.uniform(*config.ALERT_DURATION_S)
+        self._duration = base * (1.2 - 0.4 * sprite.personality.alertness)
         reset_to_stand(sprite.pose)
         pose = sprite.pose
         pose.alerted = True

@@ -1,18 +1,20 @@
-"""透明、无边框、始终置顶、点击穿透的桌面覆盖窗口。
+"""透明、无边框、始终置顶、局部点击响应的桌面覆盖窗口。
 
 负责：
 - 建立覆盖整个虚拟桌面的透明窗口
 - 维护 PetSprite 并以固定帧率驱动 + 重绘
 - 把鼠标状态分发到 sprite
 
-点击穿透：第一版纯观赏，整个窗口设为对鼠标事件透明
-（WA_TransparentForMouseEvents），鼠标点击直接穿过到底层应用。
+点击交互（局部热区）：
+- 用 setMask 每帧跟随宠物设置一个圆形可点击区域
+- 圆外区域完全穿透（不影响其他应用操作）
+- 圆内点击 → 触发 sprite.on_click 反应
 """
 from __future__ import annotations
 
 import time
 
-from PySide6.QtCore import QElapsedTimer, Qt, QTimer
+from PySide6.QtCore import QElapsedTimer, QPointF, Qt, QTimer
 from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
@@ -26,15 +28,14 @@ class PetWindow(QWidget):
     """全屏透明覆盖窗口，承载并绘制宠物。"""
 
     def __init__(self, model_name: str) -> None:
-        # FramelessWindowHint + Tool（不在任务栏出现）+ StayOnTop + 无透明背景
+        # FramelessWindowHint + Tool（不在任务栏出现）+ StayOnTop
         super().__init__(None)
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
             | Qt.WindowType.Tool
         )
-        # 完全透明背景
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        # 透明背景（但保留鼠标事件接收能力，由 setMask 控制热区）
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
 
@@ -76,16 +77,14 @@ class PetWindow(QWidget):
 
     # ---- 生命周期 ----
     def start(self) -> None:
-        # 不用 showFullScreen()：它在 macOS 会把窗口推入独立的"全屏 Space"，
-        # 那是一个全新的黑色桌面，而不是覆盖在用户当前桌面上。
-        # 改用普通窗口 + 手动几何覆盖整个虚拟桌面 + 置顶，达到"贴在桌面上"的效果。
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        # 不用 showFullScreen()：它在 macOS 会把窗口推入独立的"全屏 Space"。
+        # 改用普通窗口 + 手动几何覆盖整个虚拟桌面 + 置顶。
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        # 重新覆盖整个虚拟桌面（多显示器情况）
         geo = self.screen().virtualGeometry()
         self.setGeometry(geo)
         self.showNormal()
         self.raise_()
+        self._update_mask()
         interval_ms = int(1000 / config.RENDER_FPS)
         self._frame_timer.start(interval_ms)
         self._tracker.start()
@@ -96,7 +95,35 @@ class PetWindow(QWidget):
         self._frame_timer.stop()
         self._tracker.stop()
 
-    # ---- 鼠标 ----
+    # ---- 局部热区 ----
+    def _update_mask(self) -> None:
+        """根据宠物当前位置更新可点击的圆形区域。
+
+        setMask 让掩码外区域对鼠标完全透明（穿透到底层应用），
+        掩码内可接收点击。每帧调用以跟随宠物移动。
+        离屏平台（offscreen）不支持 mask，跳过。
+        """
+        from PySide6.QtGui import QGuiApplication, QRegion
+        try:
+            if QGuiApplication.platformName() == "offscreen":
+                return
+        except Exception:
+            pass
+        r = int(self.sprite.hit_radius)
+        cx, cy = int(self.sprite.x), int(self.sprite.y)
+        region = QRegion(cx - r, cy - r, 2 * r, 2 * r, QRegion.RegionType.Ellipse)
+        self.setMask(region)
+
+    # ---- 点击 ----
+    def mousePressEvent(self, event) -> None:
+        pos = event.position()
+        x, y = pos.x(), pos.y()
+        if self.sprite.contains(x, y):
+            self.sprite.on_click(x, y)
+            self.update()
+        # 不调 super，让掩码外区域天然穿透
+
+    # ---- 鼠标追踪 ----
     def _on_mouse(self, state: MouseState) -> None:
         self._latest_mouse = state
 
@@ -105,12 +132,12 @@ class PetWindow(QWidget):
         now_ms = self._elapsed.elapsed()
         dt = (now_ms - self._last_ms) / 1000.0
         self._last_ms = now_ms
-        # 防止切屏回来后的巨大 dt
         if dt <= 0 or dt > 0.1:
             dt = 1.0 / config.RENDER_FPS
 
         self.sprite.update(dt, self._latest_mouse)
-        # 仅重绘宠物所在区域附近（简化：整窗 update，足够流畅）
+        # 跟随宠物更新热区
+        self._update_mask()
         self.update()
 
     # ---- 绘制 ----
@@ -136,6 +163,10 @@ class PetWindow(QWidget):
         painter.drawEllipse(
             int(self.sprite.x) - 3, int(self.sprite.y) - 3, 6, 6
         )
+        # 热区圆
+        r = int(self.sprite.hit_radius)
+        painter.setPen(Qt.GlobalColor.cyan)
+        painter.drawEllipse(QPointF(self.sprite.x, self.sprite.y), r, r)
         # 状态名
         painter.setPen(Qt.GlobalColor.yellow)
         painter.drawText(

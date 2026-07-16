@@ -40,6 +40,8 @@ class ChaseAction(Action):
         pose.leg_stride = 1.0
         pose.tail_wag = 0.7
         pose.body_tilt = 0.15        # 奔跑前倾
+        # 个性影响基础速度：活泼度 0→0.6x，1→1.4x
+        self._liveliness_mult = 0.6 + 0.8 * sprite.personality.liveliness
 
     def update(self, sprite, dt: float) -> None:
         pose = sprite.pose
@@ -82,8 +84,8 @@ class ChaseAction(Action):
                 # 缓动接近目标倍率
                 self._speed_mult += (self._speed_target - self._speed_mult) * min(1.0, dt * 4.0)
 
-                # 实际移动
-                speed = config.CHASE_SPEED_PX_S * self._speed_mult
+                # 实际移动（个性 liveliness 影响基础速度）
+                speed = config.CHASE_SPEED_PX_S * self._speed_mult * self._liveliness_mult
                 # 距离很近时减速避免抖动
                 if dist < config.CHASE_SLOWDOWN_DIST_PX:
                     speed *= max(0.1, dist / config.CHASE_SLOWDOWN_DIST_PX)

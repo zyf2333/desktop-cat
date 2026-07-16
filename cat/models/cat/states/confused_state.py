@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from cat.core.state_machine import State
-from cat.models.cat.actions import ACTIONS
+from cat.models.cat.actions import make_action
 from cat.models.cat.states._conditions import in_alert_range
 
 
@@ -16,7 +16,7 @@ class ConfusedState(State):
     def on_enter(self, sprite) -> None:
         sprite.clear_action()
         sprite.play(
-            ACTIONS["confused"](),
+            make_action("confused", sprite=sprite),
             on_done=lambda: sprite.fsm.transition_to("idle"),
         )
 

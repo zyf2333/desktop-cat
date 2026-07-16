@@ -26,3 +26,6 @@ def reset_to_stand(pose) -> None:
     pose.pupil_dilate = 0.0
     pose.confused = False
     pose.alerted = False
+    pose.mouth = "smile"
+    pose.paw_raise = 0.0
+    pose.on_back = False

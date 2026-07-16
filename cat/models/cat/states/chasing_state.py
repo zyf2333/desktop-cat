@@ -1,8 +1,9 @@
 """CHASING 状态：带玩耍感的追逐（速度波动+停顿）。
 
+- 进入玩距且概率命中 → PLAYING（玩弄）
 - 进入扑击距离且概率命中 → POUNCING
-- 鼠标丢失（超出范围或甩脱）→ CONFUSED
-- 鼠标静止（玩累了？）→ IDLE
+- 鼠标丢失 → CONFUSED
+- 鼠标静止 → IDLE
 """
 from __future__ import annotations
 
@@ -11,7 +12,7 @@ import random
 
 from cat import config
 from cat.core.state_machine import State
-from cat.models.cat.actions import ACTIONS
+from cat.models.cat.actions import make_action
 from cat.models.cat.states._conditions import dist_to_mouse, lost_mouse, mouse_pos
 
 
@@ -20,7 +21,7 @@ class ChasingState(State):
 
     def on_enter(self, sprite) -> None:
         sprite.clear_action()
-        sprite.play(ACTIONS["chase"](lambda: mouse_pos(sprite)))
+        sprite.play(make_action("chase", sprite=sprite, target=lambda: mouse_pos(sprite)))
         self._chase_t = 0.0
 
     def update(self, sprite, dt: float, mouse_state) -> None:
@@ -37,9 +38,15 @@ class ChasingState(State):
             sprite.fsm.transition_to("idle")
             return
 
-        # 扑击判定：追了一会儿后，进入距离且有概率
         if self._chase_t > 0.3:
             d = dist_to_mouse(sprite, mouse_state)
+            # 进入玩距 → 玩弄（逗猫棒玩法）
+            if d <= config.PLAY_DIST_PX:
+                if random.random() < config.CHASE_TO_PLAY_PROB:
+                    sprite.clear_action()
+                    sprite.fsm.transition_to("playing")
+                    return
+            # 进入扑击距离 → 扑击
             if d < config.CHASE_TO_POUNCE_DIST_PX:
                 if random.random() < config.CHASE_TO_POUNCE_PROB:
                     sprite.clear_action()

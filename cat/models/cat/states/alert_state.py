@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from cat.core.state_machine import State
-from cat.models.cat.actions import ACTIONS
+from cat.models.cat.actions import make_action
 from cat.models.cat.states._conditions import lost_mouse
 
 
@@ -16,7 +16,7 @@ class AlertState(State):
     def on_enter(self, sprite) -> None:
         sprite.clear_action()
         sprite.play(
-            ACTIONS["alert"](),
+            make_action("alert", sprite=sprite),
             on_done=lambda: sprite.fsm.transition_to("noticed"),
         )
 

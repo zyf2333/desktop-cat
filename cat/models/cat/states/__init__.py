@@ -16,6 +16,7 @@ from cat.models.cat.states.confused_state import ConfusedState
 from cat.models.cat.states.grooming_state import GroomingState
 from cat.models.cat.states.idle_state import IdleState
 from cat.models.cat.states.notice_state import NoticeState
+from cat.models.cat.states.playing_state import PlayingState
 from cat.models.cat.states.pouncing_state import PouncingState
 from cat.models.cat.states.sleeping_state import SleepingState
 from cat.models.cat.states.stalking_state import StalkingState
@@ -31,6 +32,8 @@ def build_cat_state_machine(sprite) -> StateMachine:
     fsm.add(StalkingState())
     fsm.add(PouncingState())
     fsm.add(ChasingState())
+    # 玩弄（逗猫棒玩法）
+    fsm.add(PlayingState())
     # 困惑
     fsm.add(ConfusedState())
     # 生理
@@ -49,6 +52,7 @@ __all__ = [
     "StalkingState",
     "PouncingState",
     "ChasingState",
+    "PlayingState",
     "ConfusedState",
     "SleepingState",
     "GroomingState",

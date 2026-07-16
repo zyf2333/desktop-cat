@@ -21,9 +21,12 @@ class StalkAction(Action):
         super().__init__()
         self._target = target  # callable 返回当前鼠标位置
         self._done = False
+        self._speed_mult = 1.0
 
     def start(self, sprite) -> None:
         super().start(sprite)
+        # 个性影响潜行速度：有耐心的猫潜行更慢更稳（patience 0→1.3x，1→0.7x）
+        self._speed_mult = 1.3 - 0.6 * sprite.personality.patience
         reset_to_stand(sprite.pose)
         pose = sprite.pose
         pose.alerted = True
@@ -43,8 +46,8 @@ class StalkAction(Action):
         if abs(dx) > 2:
             sprite.facing = 1 if dx > 0 else -1
 
-        # 缓慢接近
-        new = move_towards((sprite.x, sprite.y), target, config.STALK_SPEED_PX_S * dt)
+        # 缓慢接近（个性 patience 影响速度）
+        new = move_towards((sprite.x, sprite.y), target, config.STALK_SPEED_PX_S * self._speed_mult * dt)
         sprite.x, sprite.y = new
 
         # 瞳孔死盯
