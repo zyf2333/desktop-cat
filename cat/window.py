@@ -47,6 +47,12 @@ class PetWindow(QWidget):
 
         # 模型与精灵
         model = get_model(model_name)
+        self._is_3d = bool(getattr(model, "is_3d", False))
+        # 若 config 强制渲染模式，覆盖模型自报
+        if config.RENDER_MODE == "2d":
+            self._is_3d = False
+        elif config.RENDER_MODE == "3d":
+            self._is_3d = True
         self.sprite = PetSprite(
             model=model,
             x=self.width() / 2,
@@ -54,6 +60,14 @@ class PetWindow(QWidget):
             size_px=config.PET_SIZE_PX,
         )
         self.sprite.start("idle")
+
+        # 3D 渲染：构建 Qt3D 子窗口场景
+        self._qt3d_view = None
+        self._qt3d_container = None
+        self._qt3d_root = None
+        self._qt3d_root_transform = None
+        if self._is_3d:
+            self._setup_3d(model)
 
         # 鼠标追踪
         self._tracker = MouseTracker()
@@ -75,6 +89,49 @@ class PetWindow(QWidget):
         self._frame_timer.timeout.connect(self._tick)
         self._global_t0 = time.monotonic()
 
+    def _setup_3d(self, model) -> None:
+        """构建 Qt3D 透明渲染场景：相机、光照、猫的 entity 树。"""
+        from PySide6.Qt3DCore import Qt3DCore
+        from PySide6.Qt3DExtras import Qt3DExtras
+        from PySide6.Qt3DRender import Qt3DRender
+        from PySide6.QtGui import QColor, QVector3D
+
+        self._qt3d_view = Qt3DExtras.Qt3DWindow()
+        # 透明背景
+        self._qt3d_view.defaultFrameGraph().setClearColor(QColor(0, 0, 0, 0))
+
+        # 相机：正交投影更适合"桌面贴图"感（避免透视变形）
+        camera = self._qt3d_view.camera()
+        cam_h = config.PET_SIZE_PX * 1.2
+        camera.lens().setOrthographicProjection(
+            -cam_h, cam_h, -cam_h, cam_h, 0.1, 1000.0
+        )
+        camera.setPosition(QVector3D(0, 0, config.CAMERA_DISTANCE))
+        camera.setViewCenter(QVector3D(0, 0, 0))
+
+        # 根 entity（猫的整体位置/朝向挂这里）
+        self._qt3d_root = Qt3DCore.QEntity()
+        self._qt3d_root_transform = Qt3DCore.QTransform(self._qt3d_root)
+        self._qt3d_root.addComponent(self._qt3d_root_transform)
+
+        # 光照
+        if config.ENABLE_3D_LIGHTING:
+            light_entity = Qt3DCore.QEntity(self._qt3d_root)
+            light = Qt3DRender.QDirectionalLight(light_entity)
+            light.setWorldDirection(QVector3D(-0.5, -0.5, -1).normalized())
+            light.setColor(QColor("#FFFFFF"))
+            light.setIntensity(1.0)
+            light_entity.addComponent(light)
+
+        # 让模型构建猫的 entity 树
+        model.build_3d_scene(self._qt3d_root)
+
+        self._qt3d_view.setRootEntity(self._qt3d_root)
+
+        # 嵌入 QWidget 容器（关键：保住外层 QWidget 的 setMask 穿透）
+        self._qt3d_container = QWidget.createWindowContainer(self._qt3d_view, self)
+        self._qt3d_container.setStyleSheet("background: transparent;")
+
     # ---- 生命周期 ----
     def start(self) -> None:
         # 不用 showFullScreen()：它在 macOS 会把窗口推入独立的"全屏 Space"。
@@ -84,12 +141,25 @@ class PetWindow(QWidget):
         self.setGeometry(geo)
         self.showNormal()
         self.raise_()
+        # 3D 模式：定位容器到宠物当前位置
+        if self._is_3d and self._qt3d_container is not None:
+            self._qt3d_container.show()
+            self._position_3d_container()
         self._update_mask()
         interval_ms = int(1000 / config.RENDER_FPS)
         self._frame_timer.start(interval_ms)
         self._tracker.start()
         self._elapsed.restart()
         self._last_ms = 0
+
+    def _position_3d_container(self) -> None:
+        """把 Qt3D 容器定位到宠物当前位置（跟随宠物移动）。"""
+        if self._qt3d_container is None:
+            return
+        size = config.PET_SIZE_PX * 2
+        x = int(self.sprite.x - size / 2)
+        y = int(self.sprite.y - size / 2)
+        self._qt3d_container.setGeometry(x, y, size, size)
 
     def stop(self) -> None:
         self._frame_timer.stop()
@@ -138,10 +208,24 @@ class PetWindow(QWidget):
         self.sprite.update(dt, self._latest_mouse)
         # 跟随宠物更新热区
         self._update_mask()
-        self.update()
 
-    # ---- 绘制 ----
+        if self._is_3d:
+            # 3D 模式：每帧推进自驱动 + 渲染 + 跟随定位容器
+            t = time.monotonic() - self._global_t0
+            self.sprite.model.advance(self.sprite.pose, t)
+            self.sprite.model.render_3d(
+                self._qt3d_root, self.sprite.pose, self.sprite.facing, t,
+                config.CAT3D_SCALE,
+            )
+            self._position_3d_container()
+        else:
+            # 2D 模式：触发重绘
+            self.update()
+
+    # ---- 绘制（仅 2D 模式）----
     def paintEvent(self, _event) -> None:
+        if self._is_3d:
+            return  # 3D 由 Qt3D 容器自渲染
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)

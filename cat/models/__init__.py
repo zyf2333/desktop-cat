@@ -3,4 +3,5 @@
 新增模型（如 dog）：在 cat/models/<name>/ 创建 Model 子类，
 并在本文件 import 一次即可进入注册表。
 """
-from cat.models import cat  # noqa: F401  触发 cat 模型的注册
+from cat.models import cat    # noqa: F401  2D 猫，触发注册
+from cat.models import cat3d  # noqa: F401  3D 猫（low-poly，Qt3D），触发注册

@@ -81,6 +81,8 @@ class PetSprite:
         """绘制：平移到宠物中心，委托给 model.draw。"""
         painter.save()
         painter.translate(self.x, self.y)
+        # 先推进渲染无关的自驱动状态（呼吸/眨眼），再委托绘制
+        self.model.advance(self.pose, t)
         # facing 翻转交给 model.draw 内部处理（保持中心对称）
         self.model.draw(painter, self.pose, self.facing, t, self.size_px)
         painter.restore()

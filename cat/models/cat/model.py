@@ -22,29 +22,31 @@ if TYPE_CHECKING:
 
 class CatModel(Model):
     name = "cat"
+    is_3d = False  # 2D QPainter 渲染
 
     def default_pose(self) -> CatPose:
         return CatPose()
 
-    def draw(self, painter: "QPainter", pose: Any, facing: int, t: float, size_px: int) -> None:
-        assert isinstance(pose, CatPose), "CatModel 只能绘制 CatPose"
-        # 推进呼吸相位（用 t 做自驱动，无需外部更新）
+    def advance(self, pose: Any, t: float) -> None:
+        """推进渲染无关的自驱动状态（呼吸/眨眼/摆尾）。2D/3D 共用。"""
+        assert isinstance(pose, CatPose)
+        # 呼吸相位
         pose.breathe_phase = t * 1.6
-        # 尾巴自摆（轻微）
+        # 尾巴自摆
         if pose.tail_wag > 0:
             pose.tail_wag_phase = t * 6.0
-        # 自动眨眼：每 ~4 秒眨一次（仅当动作未主动设 blink 时）
-        # 用周期函数：blink_phase 在每个周期开头有短暂峰值
+        # 自动眨眼：每 ~4 秒一次（仅当动作未主动设 blink 时）
         blink_cycle = t % 4.2
         if 4.0 < blink_cycle < 4.18:
-            # 眨眼持续约 0.18s，三角形包络
             local = (blink_cycle - 4.0) / 0.18
             auto_blink = 1.0 - abs(local * 2 - 1)
         else:
             auto_blink = 0.0
-        # 只在动作没有主动设 blink（blink==0）时叠加自动眨眼
         if pose.blink < 0.1:
             pose.blink = auto_blink
+
+    def draw(self, painter: "QPainter", pose: Any, facing: int, t: float, size_px: int) -> None:
+        assert isinstance(pose, CatPose), "CatModel 只能绘制 CatPose"
         draw_cat(painter, pose, facing, t, size_px=size_px)
 
     def create_state_machine(self, sprite: "PetSprite") -> StateMachine:
