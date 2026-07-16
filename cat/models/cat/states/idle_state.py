@@ -10,12 +10,18 @@ from __future__ import annotations
 
 import math
 import random
+import time
 
 from cat import config
 from cat.core.state_machine import State
 from cat.models.cat.actions import IDLE_ACTIONS, make_action, weighted_choice
 from cat.models.cat.states._intents import Intent, decide_intent
 from cat.utils.geometry import clamp
+
+
+def _in_play_cooldown(sprite) -> bool:
+    """是否还在玩弄冷却期（刚玩腻走开，暂时不理鼠标）。"""
+    return time.monotonic() < sprite.play_cooldown_until
 
 
 class IdleState(State):
@@ -41,7 +47,8 @@ class IdleState(State):
             sprite.fsm.transition_to("alert")
             return
         # 鼠标极近时直接进入玩弄（idle 也可能突然被凑脸）
-        if intent == Intent.PLAY:
+        # 但玩腻冷却期内不进 playing（刚走开，让它真的离开一会儿）
+        if intent == Intent.PLAY and not _in_play_cooldown(sprite):
             sprite.fsm.transition_to("playing")
             return
         if intent in (Intent.STALK, Intent.CHASE, Intent.POUNCE):

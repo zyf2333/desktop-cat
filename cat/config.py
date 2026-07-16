@@ -55,6 +55,11 @@ POUNCE_REACH_DIST_PX = 12         # 冲刺到离目标多近算扑到
 # ---- 困惑（找不到鼠标）----
 CONFUSED_DURATION_S = (1.2, 2.2)  # 困惑持续时长（四处张望后回 idle）
 
+# ---- 玩腻（PLAYING 中鼠标静止）----
+# 鼠标不动超过此秒数 → 猫觉得没意思，主动走开。
+# 受个性 patience 影响：有耐心的猫撑更久（0→0.5x，1→1.6x）。
+PLAY_BORED_AFTER_S = 2.5
+
 # ---- 渲染 ----
 RENDER_FPS = 60
 PET_SIZE_PX = 96                  # 宠物渲染尺寸（模型无关）

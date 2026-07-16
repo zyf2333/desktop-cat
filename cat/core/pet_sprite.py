@@ -54,6 +54,10 @@ class PetSprite:
         # 最新鼠标状态（每帧由 update 刷新），供 Action/State 读取
         self.mouse_state = None
 
+        # 玩弄冷却：玩腻退出 playing 时设的时间戳，在此之前不再进 playing。
+        # 避免"玩腻→idle→鼠标还在脚下→立刻又 playing"的死循环。
+        self.play_cooldown_until: float = 0.0
+
     # ---- 生命周期 ----
     def start(self, initial_state: str) -> None:
         """启动状态机，进入初始状态。"""
