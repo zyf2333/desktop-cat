@@ -140,6 +140,9 @@ class PetWindow(QWidget):
 
         # 嵌入 QWidget 容器（关键：保住外层 QWidget 的 setMask 穿透）
         self._qt3d_container = QWidget.createWindowContainer(self._qt3d_view, self)
+        # 容器必须透明，否则会显示黑色底（配合 format alpha + view 透明清屏）
+        self._qt3d_container.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self._qt3d_container.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
         self._qt3d_container.setStyleSheet("background: transparent;")
 
     # ---- 生命周期 ----
