@@ -187,25 +187,41 @@ def _draw_front_legs(painter: QPainter, pose: CatPose) -> None:
 
 
 def _draw_head(painter: QPainter, pose: CatPose, t: float) -> None:
-    """头：圆脸 + 两耳 + 眼睛 + 鼻嘴。"""
+    """头：圆脸 + 两耳 + 眼睛 + 鼻嘴。支持歪头/竖耳/困惑。"""
     # 头部位置（在身体上方），可上下浮动+左右转
     head_x = pose.head_turn * 6
     head_y = -22 + pose.head_bob
     painter.save()
     painter.translate(head_x, head_y)
+    # 歪头（困惑时）：绕头中心旋转
+    if abs(pose.head_tilt) > 1e-3:
+        painter.rotate(math.degrees(pose.head_tilt))
 
-    # 耳朵
+    # 耳朵：ear_alert 越高耳朵越朝前竖（耳朵角度随 alert 变化）
     painter.setPen(_outline_pen())
     painter.setBrush(COL_BODY)
-    ear_l = QPolygonF([QPointF(-26, -6), QPointF(-20, -28), QPointF(-10, -12)])
-    ear_r = QPolygonF([QPointF(26, -6), QPointF(20, -28), QPointF(10, -12)])
+    # alert 影响耳朵顶端 y 坐标（更竖=更高更靠前）
+    a = clamp(pose.ear_alert, 0.0, 1.0)
+    ear_top_dy = -28 - a * 4        # 竖起时耳朵更高
+    ear_top_dx = (1 - a) * 3        # 放松时耳朵略外八
+    ear_l = QPolygonF([
+        QPointF(-26, -6),
+        QPointF(-20 - ear_top_dx, ear_top_dy),
+        QPointF(-10, -12),
+    ])
+    ear_r = QPolygonF([
+        QPointF(26, -6),
+        QPointF(20 + ear_top_dx, ear_top_dy),
+        QPointF(10, -12),
+    ])
     painter.drawPolygon(ear_l)
     painter.drawPolygon(ear_r)
     # 耳内粉
     painter.setPen(Qt.PenStyle.NoPen)
     painter.setBrush(COL_INNER_EAR)
-    in_l = QPolygonF([QPointF(-23, -8), QPointF(-19, -22), QPointF(-13, -12)])
-    in_r = QPolygonF([QPointF(23, -8), QPointF(19, -22), QPointF(13, -12)])
+    in_top_dy = ear_top_dy + 6
+    in_l = QPolygonF([QPointF(-23, -8), QPointF(-19 - ear_top_dx, in_top_dy), QPointF(-13, -12)])
+    in_r = QPolygonF([QPointF(23, -8), QPointF(19 + ear_top_dx, in_top_dy), QPointF(13, -12)])
     painter.drawPolygon(in_l)
     painter.drawPolygon(in_r)
 
@@ -240,7 +256,14 @@ def _draw_head(painter: QPainter, pose: CatPose, t: float) -> None:
     painter.drawLine(QPointF(14, 6), QPointF(24, 4))
     painter.drawLine(QPointF(14, 9), QPointF(24, 10))
 
-    # 睡觉时的 Z
+    # 状态气泡：睡觉 Z / 困惑 ?
+    _draw_status_bubble(painter, pose, t)
+
+    painter.restore()
+
+
+def _draw_status_bubble(painter: QPainter, pose: CatPose, t: float) -> None:
+    """在头顶绘制状态符号：睡觉 z / 困惑 ?。"""
     if pose.asleep:
         painter.setPen(QPen(COL_OUTLINE, 1.6))
         font = painter.font()
@@ -249,15 +272,27 @@ def _draw_head(painter: QPainter, pose: CatPose, t: float) -> None:
         painter.setFont(font)
         zz = "z" * (1 + int(t * 1.5) % 3)
         painter.drawText(QRectF(16, -34, 24, 16), Qt.AlignmentFlag.AlignCenter, zz)
-
-    painter.restore()
+    elif pose.confused:
+        # 困惑：头顶飘一个 "?"，带轻微浮动
+        bob = math.sin(t * 3.0) * 2.0
+        painter.setPen(QPen(QColor("#7A5CD6"), 2.0))
+        font = painter.font()
+        font.setPointSize(14)
+        font.setBold(True)
+        painter.setFont(font)
+        painter.drawText(QRectF(-8, -42 + bob, 24, 20), Qt.AlignmentFlag.AlignCenter, "?")
 
 
 def _draw_eyes(painter: QPainter, pose: CatPose) -> None:
-    """眼睛：根据 eye_open/blink 决定开合，瞳孔随 pupil_dx/dy 移动。"""
+    """眼睛：开合 + 瞳孔移动 + 瞳孔放大（兴奋）。
+
+    pupil_dilate ∈ [0,1]：0=细缝瞳孔（放松），1=大圆瞳孔（兴奋/锁定）。
+    真猫在兴奋/捕猎时瞳孔会显著放大变圆。
+    """
     open_level = clamp(pose.eye_open * (1.0 - pose.blink), 0.0, 1.0)
     eye_dx = pose.pupil_dx * 2.0
     eye_dy = pose.pupil_dy * 1.5
+    dilate = clamp(pose.pupil_dilate, 0.0, 1.0)
 
     if open_level <= 0.05 or pose.asleep:
         # 闭眼：画一道弧
@@ -268,16 +303,18 @@ def _draw_eyes(painter: QPainter, pose: CatPose) -> None:
         painter.drawArc(QRectF(6, -3, 8, 6), 0 * 16, 180 * 16)
         return
 
-    # 睁眼：杏仁形眼眶 + 瞳孔
+    # 睁眼：杏仁形眼眶
     eye_h = 9 * open_level
     painter.setPen(_outline_pen(1.8))
     painter.setBrush(QColor("#FFFFFF"))
     painter.drawEllipse(QPointF(-10, -2), 5, eye_h)
     painter.drawEllipse(QPointF(10, -2), 5, eye_h)
-    # 瞳孔
+    # 瞳孔：dilate 越大瞳孔越宽越圆（兴奋），越小越细（放松，竖瞳）
     painter.setPen(Qt.PenStyle.NoPen)
     painter.setBrush(COL_EYE)
-    pw, ph = 2.6, eye_h * 0.7
+    # 竖瞳宽度 1.4 → 圆瞳宽度 3.8；高度随 dilate 略减（变圆）
+    pw = 1.4 + dilate * 2.4
+    ph = eye_h * (0.75 - dilate * 0.15)
     painter.drawEllipse(QPointF(-10 + eye_dx, -2 + eye_dy), pw, ph)
     painter.drawEllipse(QPointF(10 + eye_dx, -2 + eye_dy), pw, ph)
     # 高光

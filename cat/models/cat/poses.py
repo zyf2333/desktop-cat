@@ -51,5 +51,12 @@ class CatPose:
     asleep: bool = False            # 睡觉：闭眼+Z
     grooming: bool = False          # 舔毛：前爪抬起+头低下
 
+    # ---- 捕猎/情绪标记 ----
+    ear_alert: float = 0.0          # 耳朵竖起程度 [0,1]：警觉时耳朵朝前竖
+    head_tilt: float = 0.0          # 头部歪斜（弧度）：困惑时歪头
+    pupil_dilate: float = 0.0       # 瞳孔放大 [0,1]：兴奋/锁定时放大
+    confused: bool = False          # 困惑：问号 + 歪头 + 眨眼
+    alerted: bool = False           # 警觉态：身体微紧、瞳孔追踪
+
     # ---- 周期动画自驱动（drawing 用，由 model 维护）----
     breathe_phase: float = 0.0      # 呼吸相位

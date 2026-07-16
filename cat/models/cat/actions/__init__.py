@@ -5,30 +5,50 @@
 
 约定：动作只修改 pose 的字段 + sprite 的位置/朝向，不自行决定状态切换。
 完成时调用 self.finish() 触发 on_done 回调（由 State 设置）。
+
+动作分组：
+- 捕猎链：alert → notice → stalk → pounce_prep(windup) → lunge
+- 追逐：chase（玩耍感，速度波动+停顿）
+- 困惑：confused（找不到鼠标）
+- 空闲：walk / sit / groom / stretch / sleep
 """
 from __future__ import annotations
 
 from cat.models.cat.actions._helpers import reset_to_stand
+from cat.models.cat.actions.alert import AlertAction
+from cat.models.cat.actions.chase import ChaseAction
+from cat.models.cat.actions.confused import ConfusedAction
 from cat.models.cat.actions.groom import GroomAction
+from cat.models.cat.actions.notice import NoticeAction
 from cat.models.cat.actions.pounce import PounceAction
 from cat.models.cat.actions.run import RunAction
 from cat.models.cat.actions.sit import SitAction
 from cat.models.cat.actions.sleep import SleepAction
+from cat.models.cat.actions.stalk import StalkAction
 from cat.models.cat.actions.stretch import StretchAction
 from cat.models.cat.actions.walk import WalkAction
 
 # 动作名 → Action 类。State 用这些名字创建实例。
 ACTIONS = {
-    "walk": WalkAction,
-    "run": RunAction,
+    # 捕猎链
+    "alert": AlertAction,
+    "notice": NoticeAction,
+    "stalk": StalkAction,
     "pounce": PounceAction,
+    # 追逐
+    "chase": ChaseAction,
+    "run": RunAction,          # 兼容：直接追（无玩耍感）
+    # 困惑
+    "confused": ConfusedAction,
+    # 空闲
+    "walk": WalkAction,
     "sit": SitAction,
     "sleep": SleepAction,
     "groom": GroomAction,
     "stretch": StretchAction,
 }
 
-# IDLE 状态可随机挑选的"小动作"（不含 walk/run/pounce 这些位移类）
+# IDLE 状态可随机挑选的"小动作"（不含位移/捕猎类）
 IDLE_IDLE_ACTIONS = ["sit", "groom", "stretch"]
 
 
@@ -36,9 +56,14 @@ __all__ = [
     "ACTIONS",
     "IDLE_IDLE_ACTIONS",
     "reset_to_stand",
-    "WalkAction",
-    "RunAction",
+    "AlertAction",
+    "NoticeAction",
+    "StalkAction",
     "PounceAction",
+    "ChaseAction",
+    "RunAction",
+    "ConfusedAction",
+    "WalkAction",
     "SitAction",
     "SleepAction",
     "GroomAction",

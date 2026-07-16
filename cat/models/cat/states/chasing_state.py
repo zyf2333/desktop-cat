@@ -1,10 +1,8 @@
-"""CHASING 状态：追鼠标 + 扑击触发 + 甩脱判定。
+"""CHASING 状态：带玩耍感的追逐（速度波动+停顿）。
 
-进入时启动 RunAction（目标=鼠标当前位置，每帧动态求值）。
-每帧检查：
-- 甩脱（鼠标高速持续）→ IDLE
-- 鼠标静止 → IDLE
 - 进入扑击距离且概率命中 → POUNCING
+- 鼠标丢失（超出范围或甩脱）→ CONFUSED
+- 鼠标静止（玩累了？）→ IDLE
 """
 from __future__ import annotations
 
@@ -14,44 +12,36 @@ import random
 from cat import config
 from cat.core.state_machine import State
 from cat.models.cat.actions import ACTIONS
+from cat.models.cat.states._conditions import dist_to_mouse, lost_mouse, mouse_pos
 
 
 class ChasingState(State):
     name = "chasing"
 
     def on_enter(self, sprite) -> None:
-        # 目标用 callable：每帧取最新鼠标位置（由 sprite.mouse_state 提供）
-        def mouse_pos():
-            if sprite.mouse_state is not None:
-                return sprite.mouse_state.pos
-            return (sprite.x, sprite.y)
-
         sprite.clear_action()
-        run = ACTIONS["run"](mouse_pos)
-        sprite.play(run)
-        # 标记：进入时短暂禁用扑击，避免一追上就扑（让追逐持续一会儿）
+        sprite.play(ACTIONS["chase"](lambda: mouse_pos(sprite)))
         self._chase_t = 0.0
 
     def update(self, sprite, dt: float, mouse_state) -> None:
-        ms = mouse_state
         self._chase_t += dt
 
-        # 甩脱 → 放弃
-        if ms.is_escaping:
+        # 鼠标丢失 → 困惑
+        if lost_mouse(sprite, mouse_state):
             sprite.clear_action()
-            sprite.fsm.transition_to("idle")
+            sprite.fsm.transition_to("confused")
             return
-        # 鼠标静止 → 放弃
-        if not ms.moving:
+        # 鼠标静止 → 放弃回 idle
+        if not mouse_state.moving:
             sprite.clear_action()
             sprite.fsm.transition_to("idle")
             return
 
-        # 扑击判定：追逐至少 0.2s 后，进入距离且有概率
-        if self._chase_t > 0.2:
-            dist = math.hypot(ms.pos[0] - sprite.x, ms.pos[1] - sprite.y)
-            if dist < config.POUNCE_TRIGGER_DIST_PX:
-                if random.random() < config.POUNCE_PROBABILITY:
+        # 扑击判定：追了一会儿后，进入距离且有概率
+        if self._chase_t > 0.3:
+            d = dist_to_mouse(sprite, mouse_state)
+            if d < config.CHASE_TO_POUNCE_DIST_PX:
+                if random.random() < config.CHASE_TO_POUNCE_PROB:
                     sprite.clear_action()
                     sprite.fsm.transition_to("pouncing")
                     return

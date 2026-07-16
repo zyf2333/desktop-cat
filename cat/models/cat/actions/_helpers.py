@@ -21,3 +21,8 @@ def reset_to_stand(pose) -> None:
     pose.head_bob = 0.0
     pose.asleep = False
     pose.grooming = False
+    pose.ear_alert = 0.0
+    pose.head_tilt = 0.0
+    pose.pupil_dilate = 0.0
+    pose.confused = False
+    pose.alerted = False

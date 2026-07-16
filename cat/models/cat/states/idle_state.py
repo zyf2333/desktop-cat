@@ -14,6 +14,7 @@ import random
 from cat import config
 from cat.core.state_machine import State
 from cat.models.cat.actions import ACTIONS, IDLE_IDLE_ACTIONS
+from cat.models.cat.states._conditions import in_alert_range
 from cat.utils.geometry import clamp
 
 
@@ -35,9 +36,9 @@ class IdleState(State):
         ms = mouse_state
 
         # ---- 状态切换判定 ----
-        # 鼠标移动且非甩脱 → 追
-        if ms.moving and not ms.is_escaping:
-            sprite.fsm.transition_to("chasing")
+        # 鼠标进入警觉范围且在动 → 警觉（开始捕猎序列）
+        if in_alert_range(sprite, mouse_state):
+            sprite.fsm.transition_to("alert")
             return
         # 长时间静止 → 睡
         if ms.still_seconds >= config.IDLE_SLEEP_AFTER_S:
