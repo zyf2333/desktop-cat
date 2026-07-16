@@ -1,0 +1,93 @@
+"""PetSprite —— 通用宠物实体（模型无关）。
+
+持有宠物的运行时状态：位置、朝向、姿态、当前动作；并把绘制委托给 Model。
+窗口层每帧调用 sprite.update() 推进 FSM，再调用 sprite.draw() 绘制。
+
+设计要点：
+- PetSprite 不知道自己是什么动物，所有"猫/狗"细节都在 Model 里。
+- pose 是 Model 提供的不透明对象，Action 直接读写它的字段。
+- facing 由 Action/State 根据移动方向设置；绘制时 Model 负责按 facing 翻转。
+"""
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Optional
+
+from .action import Action
+from .model import Model
+from .state_machine import StateMachine
+
+if TYPE_CHECKING:
+    from PySide6.QtGui import QPainter
+
+
+class PetSprite:
+    """一只宠物的运行时数据与驱动。"""
+
+    def __init__(
+        self,
+        model: Model,
+        x: float,
+        y: float,
+        size_px: int,
+    ) -> None:
+        self.model: Model = model
+        self.x: float = x
+        self.y: float = y
+        self.size_px: int = size_px
+        self.facing: int = 1  # +1 朝右，-1 朝左
+        self.pose: Any = model.default_pose()
+
+        # 状态机由模型装配
+        self.fsm: StateMachine = model.create_state_machine(self)
+
+        # 当前动作（可能为 None：表示"无动作"，由状态自己直接驱动 pose）
+        self._action: Optional[Action] = None
+
+        # 最新鼠标状态（每帧由 update 刷新），供 Action/State 读取
+        self.mouse_state = None
+
+    # ---- 生命周期 ----
+    def start(self, initial_state: str) -> None:
+        """启动状态机，进入初始状态。"""
+        self.fsm.start(initial_state)
+
+    def update(self, dt: float, mouse_state) -> None:
+        """每帧驱动：先推进当前 Action，再驱动 FSM。"""
+        self.mouse_state = mouse_state
+        action = self._action
+        if action is not None:
+            action.update(self, dt)
+            # 仅当仍是同一个 action 且它已完成时才清理。
+            # 注意：action.update 可能触发 finish→on_done→transition_to→
+            #       新状态 on_enter 中的 play/clear_action，此时 _action 已被替换，
+            #       不应再动它。
+            if self._action is action and action.is_done():
+                self._action = None
+        self.fsm.update(dt, mouse_state)
+
+    def draw(self, painter: "QPainter", t: float) -> None:
+        """绘制：平移到宠物中心，委托给 model.draw。"""
+        painter.save()
+        painter.translate(self.x, self.y)
+        # facing 翻转交给 model.draw 内部处理（保持中心对称）
+        self.model.draw(painter, self.pose, self.facing, t, self.size_px)
+        painter.restore()
+
+    # ---- 动作控制（供 State 调用）----
+    def play(self, action: Action, on_done: Optional[Any] = None) -> None:
+        """开始播放一个动作。完成时触发 on_done（若提供）。"""
+        action.on_done = on_done
+        self._action = action
+        action.start(self)
+
+    @property
+    def has_action(self) -> bool:
+        return self._action is not None
+
+    @property
+    def current_action(self) -> Optional[Action]:
+        return self._action
+
+    def clear_action(self) -> None:
+        """强制中止当前动作（不触发 on_done）。供状态切换时清理用。"""
+        self._action = None
