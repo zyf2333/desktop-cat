@@ -154,6 +154,10 @@ class PetWindow(QWidget):
         self.setGeometry(geo)
         self.showNormal()
         self.raise_()
+        # 强制置顶：macOS 上 WindowStaysOnTopHint 不足以压过所有窗口，
+        # 用原生 API 把 NSWindow level 提到屏幕保护级。
+        from cat.platform_topmost import force_topmost
+        force_topmost(self)
         # 3D 模式：定位容器到宠物当前位置
         if self._is_3d and self._qt3d_container is not None:
             self._qt3d_container.show()
