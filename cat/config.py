@@ -5,8 +5,9 @@
 from __future__ import annotations
 
 # ---- 模型 ----
-MODEL_NAME = "cat"  # 当前使用的模型；--model 启动参数会覆盖此值
-                    # "cat" = 2D 矢量猫；"cat3d" = 3D low-poly 猫（Qt3D）
+MODEL_NAME = "catsprite"  # 当前使用的模型；--model 启动参数会覆盖此值
+                    # "cat" = 2D 矢量猫；"cat3d" = 3D 猫（Qt3D）；
+                    # "catsprite" = 精灵序列帧猫（贴图，推荐）
 
 # ---- 3D 渲染（仅 is_3d 模型用）----
 RENDER_MODE = "auto"          # "auto"=按模型 is_3d 选；"2d"=强制 2D；"3d"=强制 3D
