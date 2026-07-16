@@ -50,10 +50,10 @@ class Cat3DModel(Model):
         return self._rig
 
     def render_3d(self, root_entity: Any, pose: Any, facing: int, t: float, scale: float) -> None:
-        """每帧把 pose 翻译成 rig 各部位 transform。"""
+        """每帧把 pose 翻译成 rig 各部位 transform。scale 为整体缩放。"""
         if self._rig is None:
             return
-        update_rig(self._rig, pose, facing, t)
+        update_rig(self._rig, pose, facing, t, scale=scale)
 
     def create_state_machine(self, sprite: "PetSprite") -> StateMachine:
         return build_cat_state_machine(sprite)

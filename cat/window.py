@@ -100,14 +100,24 @@ class PetWindow(QWidget):
         # 透明背景
         self._qt3d_view.defaultFrameGraph().setClearColor(QColor(0, 0, 0, 0))
 
-        # 相机：正交投影更适合"桌面贴图"感（避免透视变形）
+        # 相机：正交投影（半高 = 猫的逻辑尺寸量级，让猫填满视野而非一个小点）
+        # 配合侧视/俯视角露出身体长度和腿，避免正面看只剩一个大圆球。
         camera = self._qt3d_view.camera()
-        cam_h = config.PET_SIZE_PX * 1.2
+        half = config.CAMERA_ORTHO_HALF
         camera.lens().setOrthographicProjection(
-            -cam_h, cam_h, -cam_h, cam_h, 0.1, 1000.0
+            -half, half, -half, half, 0.1, 1000.0
         )
-        camera.setPosition(QVector3D(0, 0, config.CAMERA_DISTANCE))
+        # 相机略偏侧/俯：绕原点的球坐标
+        import math as _m
+        yaw = _m.radians(config.CAMERA_YAW)
+        pitch = _m.radians(config.CAMERA_PITCH)
+        dist = config.CAMERA_DISTANCE
+        cx = dist * _m.cos(pitch) * _m.sin(yaw)
+        cy = -dist * _m.sin(pitch)
+        cz = dist * _m.cos(pitch) * _m.cos(yaw)
+        camera.setPosition(QVector3D(cx, cy, cz))
         camera.setViewCenter(QVector3D(0, 0, 0))
+        camera.setUpVector(QVector3D(0, 1, 0))
 
         # 根 entity（猫的整体位置/朝向挂这里）
         self._qt3d_root = Qt3DCore.QEntity()

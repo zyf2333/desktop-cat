@@ -18,15 +18,19 @@ import math
 from PySide6.QtGui import QQuaternion, QVector3D
 
 
-def update_rig(rig, pose, facing: int, t: float) -> None:
-    """根据 pose 更新 rig 各部位的 transform。"""
-    # ===== root：朝向 + 呼吸 =====
+def update_rig(rig, pose, facing: int, t: float, scale: float = 1.0) -> None:
+    """根据 pose 更新 rig 各部位的 transform。
+
+    Args:
+        scale: 整体缩放系数（config.CAT3D_SCALE），乘到 root 的最终 scale。
+    """
+    # ===== root：朝向 + 呼吸 + 整体缩放 =====
     # facing +1 朝右(+X)，-1 朝左。猫默认面朝 +X，朝左绕 Y 转 180°。
     yaw = 0.0 if facing >= 0 else 180.0
     breathe = 1.0 + 0.02 * math.sin(pose.breathe_phase)
     rig.root_transform.setRotationY(yaw)
-    # 呼吸用 scale（root 的 translation 由窗口层每帧设位置）
-    rig.root_transform.setScale(breathe)
+    # 呼吸 × 整体缩放（root 的 translation 由窗口层每帧设位置）
+    rig.root_transform.setScale(breathe * scale)
 
     # ===== body：squash/stretch/lift/tilt =====
     squash = 1.0 - 0.18 * _clamp(pose.body_squash)
