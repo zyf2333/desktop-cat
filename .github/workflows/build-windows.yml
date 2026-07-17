@@ -47,3 +47,34 @@ jobs:
           name: DesktopCat-windows
           path: DesktopCat-windows.zip
           retention-days: 30
+
+      # 自动发布到 Release（便于用 ghproxy 等国内镜像加速下载）
+      # Release 名固定为 windows-latest，每次打包覆盖更新。
+      # 下载加速：在下载 URL 前加 https://ghproxy.com/
+      - name: 发布到 Release
+        if: github.ref == 'refs/heads/master'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: windows-latest
+          name: Windows 最新版
+          body: |
+            Windows 版桌面宠物猫（自动打包）。
+
+            ## 下载加速（国内）
+            如果 GitHub 下载慢，复制下面链接到浏览器，或在前面加 `https://ghproxy.com`：
+            ```
+            https://ghproxy.com/https://github.com/zyf2333/desktop-cat/releases/download/windows-latest/DesktopCat-windows.zip
+            ```
+
+            ## 使用
+            1. 下载并解压 DesktopCat-windows.zip
+            2. 进入 DesktopCat 文件夹
+            3. 双击 DesktopCat.exe 启动
+            4. 首次运行如被 SmartScreen 拦截：点「更多信息」→「仍要运行」
+
+            无需安装 Python 或任何依赖。
+          files: DesktopCat-windows.zip
+          prerelease: false
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
