@@ -10,6 +10,10 @@ on:
   # 允许手动触发（在 GitHub 仓库 Actions 页点 Run workflow）
   workflow_dispatch:
 
+# Release 写入需要显式授权（默认 GITHUB_TOKEN 无 contents:write）
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -52,11 +56,11 @@ jobs:
       # Release 名固定为 windows-latest，每次打包覆盖更新。
       # 下载加速：在下载 URL 前加 https://ghproxy.com/
       - name: 发布到 Release
-        if: github.ref == 'refs/heads/master'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: windows-latest
           name: Windows 最新版
+          make_latest: true
           body: |
             Windows 版桌面宠物猫（自动打包）。
 
