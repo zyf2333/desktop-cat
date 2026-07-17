@@ -95,10 +95,10 @@ def _safe_remove(path: str) -> int:
         else:
             os.remove(path)
         if size > 0:
-            print(f"  删除 {os.path.basename(path)} ({_human(size)})")
+            print(f"  removed {os.path.basename(path)} ({_human(size)})")
         return size
     except (OSError, PermissionError) as e:
-        print(f"  跳过（无法删除）: {os.path.basename(path)}")
+        print(f"  skip (cannot remove): {os.path.basename(path)}")
         return 0
 
 
@@ -136,7 +136,7 @@ def strip_macos(app_path: str) -> int:
                 if entry not in _KEEP_PLUGINS:
                     total += _safe_remove(os.path.join(qt_plugins, entry))
 
-    print(f"\n共释放 {_human(total)}")
+    print(f"\nfreed total: {_human(total)}")
     return total
 
 
@@ -171,7 +171,7 @@ def strip_windows(app_dir: str) -> int:
         total += _safe_remove(os.path.join(pyside_dir, 'examples'))
         total += _safe_remove(os.path.join(pyside_dir, 'qml'))
 
-    print(f"\n共释放 {_human(total)}")
+    print(f"\nfreed total: {_human(total)}")
     return total
 
 
@@ -183,19 +183,19 @@ def main():
     if platform_arg in ('darwin', 'mac', 'macos'):
         app = os.path.join(dist, 'DesktopCat.app')
         if not os.path.isdir(app):
-            print(f"找不到 {app}，先打包：pyinstaller desktop-cat.spec")
+            print(f"not found {app}, build first: pyinstaller desktop-cat.spec")
             return 1
-        print(f"清理 macOS .app: {app}")
+        print(f"strip macOS .app: {app}")
         strip_macos(app)
-        print(f"最终 .app 体积: {_human(_path_size(app))}")
+        print(f"final .app size: {_human(_path_size(app))}")
     else:
         app = os.path.join(dist, 'DesktopCat')
         if not os.path.isdir(app):
-            print(f"找不到 {app}，先打包：pyinstaller desktop-cat.spec")
+            print(f"not found {app}, build first: pyinstaller desktop-cat.spec")
             return 1
-        print(f"清理 Windows 目录: {app}")
+        print(f"strip Windows dir: {app}")
         strip_windows(app)
-        print(f"最终目录体积: {_human(_path_size(app))}")
+        print(f"final dir size: {_human(_path_size(app))}")
     return 0
 
 
