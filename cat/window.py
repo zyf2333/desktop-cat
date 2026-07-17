@@ -84,20 +84,29 @@ class PetWindow(QWidget):
         self.setGeometry(geo)
         self.showNormal()
         self.raise_()
-        # 强制置顶：macOS 上 WindowStaysOnTopHint 不足以压过所有窗口，
-        # 用原生 API 把 NSWindow level 提到屏幕保护级。
-        from cat.platform_topmost import force_topmost
-        force_topmost(self)
         self._update_mask()
         interval_ms = int(1000 / config.RENDER_FPS)
         self._frame_timer.start(interval_ms)
         self._tracker.start()
         self._elapsed.restart()
         self._last_ms = 0
+        # 强制置顶：macOS 上 WindowStaysOnTopHint 不足以压过所有窗口。
+        # 用原生 API 把 NSWindow level 提到屏幕保护级（压过普通应用）。
+        # 启动时 aggressive 一次（强制到最前），之后周期性只重设 level
+        # （不抢焦点，避免打断用户打字/看视频）。
+        from cat.platform_topmost import force_topmost
+        from PySide6.QtCore import QTimer
+        force_topmost(self, aggressive=True)  # 启动：强制到最前
+        QTimer.singleShot(300, lambda: force_topmost(self, aggressive=True))  # 显示后重保
+        self._topmost_timer = QTimer(self)
+        self._topmost_timer.timeout.connect(lambda: force_topmost(self))  # 只重设 level
+        self._topmost_timer.start(2000)  # 每 2 秒重设一次 level
 
     def stop(self) -> None:
         self._frame_timer.stop()
         self._tracker.stop()
+        if hasattr(self, "_topmost_timer"):
+            self._topmost_timer.stop()
 
     # ---- 局部热区 ----
     def _update_mask(self) -> None:

@@ -12,11 +12,16 @@ from __future__ import annotations
 import sys
 
 
-def force_topmost(widget) -> None:
+def force_topmost(widget, aggressive: bool = False) -> None:
     """把 widget 提升到系统最高窗口层级。
 
-    macOS 用 NSWindow.setLevel；其他平台仅 raise_()。
-    需在 widget.show() 之后调用。
+    macOS 用 NSWindow.setLevel 设到屏幕保护级（压过普通应用窗口）。
+    aggressive=True 时额外调 orderFrontRegardless 强制到最前（不管焦点），
+    但会打断用户当前操作，仅在启动/必要时用。
+
+    Args:
+        widget: 要置顶的 QWidget
+        aggressive: 是否强制抢到最前（会打断用户焦点，慎用）
     """
     if sys.platform != "darwin":
         widget.raise_()
@@ -24,6 +29,8 @@ def force_topmost(widget) -> None:
 
     try:
         _mac_set_level(widget, level=1001)  # 略高于 NSScreenSaverWindowLevel(1000)
+        if aggressive:
+            _mac_order_front(widget)  # 强制到前面（不管焦点）
     except Exception:
         # 任何原生调用失败都回退到 Qt
         widget.raise_()
@@ -62,3 +69,34 @@ def _mac_set_level(widget, level: int) -> None:
     objc.objc_msgSend.restype = None
     objc.objc_msgSend.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int]
     objc.objc_msgSend(ctypes.c_void_p(nswindow), sel("setLevel:"), ctypes.c_int(level))
+
+
+def _mac_order_front(widget) -> None:
+    """macOS: 强制窗口显示到最前面（不管当前焦点在哪个应用）。
+
+    用 orderFrontRegardless（不抢键盘焦点，只是视觉上到最前）。
+    解决"点击其他窗口后猫被遮挡"的问题。
+    """
+    import ctypes
+    import ctypes.util
+
+    objc = ctypes.cdll.LoadLibrary(ctypes.util.find_library("objc"))
+    view_ptr = int(widget.winId())
+
+    objc.sel_registerName.restype = ctypes.c_void_p
+    objc.sel_registerName.argtypes = [ctypes.c_char_p]
+    objc.objc_msgSend.restype = ctypes.c_void_p
+    objc.objc_msgSend.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+
+    def sel(name: str):
+        return objc.sel_registerName(name.encode())
+
+    nsview = ctypes.c_void_p(view_ptr)
+    nswindow = objc.objc_msgSend(nsview, sel("window"))
+    if not nswindow:
+        return
+
+    # [NSWindow orderFrontRegardless] —— 强制到前面，不管焦点
+    objc.objc_msgSend.restype = None
+    objc.objc_msgSend.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    objc.objc_msgSend(ctypes.c_void_p(nswindow), sel("orderFrontRegardless"))
