@@ -6,6 +6,9 @@ __pycache__/
 build/
 dist/
 
+# PyInstaller 打包产物
+*.spec.bak
+
 # 虚拟环境
 .venv/
 venv/

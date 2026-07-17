@@ -12,11 +12,10 @@ from typing import Dict, List, Optional, Tuple
 
 from PySide6.QtGui import QPixmap
 
-# sprites 目录（项目根/assets/sprites）
-_SPRITES_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
-    "assets", "sprites",
-)
+from cat.paths import asset_path
+
+# sprites 目录（兼容打包模式：打包后用 sys._MEIPASS，开发模式用项目根）
+_SPRITES_DIR = asset_path("sprites")
 
 # 全局帧缓存：anim_name -> [QPixmap, ...]
 _cache: Dict[str, List[QPixmap]] = {}
