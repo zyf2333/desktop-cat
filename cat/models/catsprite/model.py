@@ -1,20 +1,28 @@
-"""CatSpriteModel —— 精灵序列帧渲染的猫模型。
+"""CatSpriteModel —— 精灵序列帧渲染的猫模型（Desktop-Cat 素材）。
 
 把状态机的 pose 翻译成"当前动画 + 帧索引 + 朝向"，用 QPainter 贴 PNG 帧。
 行为完全复用 2D 猫（同状态机、同动作库），只是渲染从矢量换成贴图。
 
-pose → 动画映射规则（在 _pose_to_anim 里）：
-- 走/跑/潜行/追逐类 → walk 动画
-- 扑击/跳扑 → jump 动画
-- 玩弄（swat 等）→ attack 动画（cat_a1）
-- 其他（待机/坐/睡/舔毛）→ idle 动画
+素材（Desktop-Cat，MIT 协议，72×64 像素风）：
+- idle_01~04：待机（4 帧）
+- walk_left_01~04 / walk_right_01~04：左右行走（各 4 帧，已分朝向）
+- sleep_01~06：睡觉（6 帧）
+- zzz_01~04：呼噜气泡（4 帧，叠加在 sleep 上）
+- angry_01：生气（1 帧）
 
-朝向：素材朝左，facing=+1（右）时翻转。
+动作映射（pose → 动画）：
+- asleep → sleep（睡觉时叠加 zzz 气泡）
+- 移动（leg_stride 大）→ walk_left / walk_right（按 facing 选，不翻转素材）
+- 扑击（body_lift/stretch 高）→ 暂用 walk（缺素材，后补；扑的位移仍由 pose 驱动）
+- 玩弄（playing）→ 暂用 angry（缺素材，后补）
+- 其他（待机/警觉/困惑）→ idle
+
+缺素材的动作（扑/玩）后续补充 PNG 后，在 _pose_to_anim 改映射即可。
 """
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Any, List, Optional
+from typing import TYPE_CHECKING, Any, List
 
 from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QPainter, QPixmap
@@ -31,32 +39,30 @@ if TYPE_CHECKING:
     from cat.core.pet_sprite import PetSprite
 
 
-# pose 状态 → 精灵动画名映射（纯靠 pose 字段判断，不依赖 fsm_state）
-def _pose_to_anim(pose: CatPose) -> str:
-    """根据 pose 决定播放哪个精灵动画。
+def _pose_to_anim(pose: CatPose, facing: int) -> str:
+    """根据 pose 和 facing 决定播放哪个精灵动画。
 
-    判断优先级（从高到低）：
-    1. 睡觉（asleep）→ cat_die（倒地图当躺睡）
-    2. 扑击中（body_lift 高 或 stretch 高）→ cat_jump
-    3. 蓄力（squash 高 + 不在地面）→ cat_jump
-    4. 困惑（confused 标记）→ cat_idle
-    5. 移动中（leg_stride 大）→ cat_walk
-    6. 默认 → cat_idle
+    素材已分左右朝向，直接按 facing 选 walk_left/walk_right，不做镜像翻转。
     """
     # 睡觉
     if pose.asleep:
-        return "cat_die"
-    # 扑击/跳扑（空中 或 拉伸）
+        return "sleep"
+    # 扑击/跳扑（空中或拉伸）——暂用 walk 代替（缺 pounce 素材）
+    # 扑的位移由 pose.body_lift/stretch 驱动，视觉上仍能看到跳起
     if pose.body_lift > 5 or pose.body_stretch > 0.5:
-        return "cat_jump"
-    # 蓄力（pounce windup：压低 + 警觉）
+        # 扑的时候用 walk（快速帧），加上 body_lift 的位置变化体现跳跃
+        return "walk_right" if facing >= 0 else "walk_left"
+    # 蓄力（pounce windup：压低+警觉）——暂用 idle
     if pose.body_squash > 0.4 and pose.pupil_dilate > 0.7:
-        return "cat_jump"
-    # 移动中（走/跑/潜行/追逐都靠 leg_stride）
+        return "idle"
+    # 玩弄（playing 态，pose.on_back 或 grooming）——暂用 angry 代替（缺 play 素材）
+    if pose.on_back or pose.paw_raise > 0.1:
+        return "angry"
+    # 移动中（走/跑/潜行/追逐）——按朝向选左右行走
     if pose.leg_stride > 0.2:
-        return "cat_walk"
+        return "walk_right" if facing >= 0 else "walk_left"
     # 默认待机（含坐/舔毛/伸懒腰/警觉/困惑）
-    return "cat_idle"
+    return "idle"
 
 
 class CatSpriteModel(Model):
@@ -68,8 +74,10 @@ class CatSpriteModel(Model):
         self._frame_t = 0.0    # 动画帧计时器
         self._last_anim = None
         self._frames: List[QPixmap] = []
+        self._zzz_frames: List[QPixmap] = []
         self._frame_idx = 0
-        self._fps = 10         # 精灵动画帧率
+        self._zzz_idx = 0
+        self._fps = 8          # 精灵动画帧率（Desktop-Cat 风格偏慢更可爱）
         self._loaded = False
 
     def default_pose(self) -> CatPose:
@@ -82,15 +90,17 @@ class CatSpriteModel(Model):
         if self._frame_t >= 1.0 / self._fps:
             self._frame_t = 0.0
             self._frame_idx += 1
+            self._zzz_idx += 1
 
     def draw(self, painter: QPainter, pose: Any, facing: int, t: float, size_px: int) -> None:
         assert isinstance(pose, CatPose)
         if not self._loaded:
             load_all()
+            self._zzz_frames = get_animation("zzz")
             self._loaded = True
 
         # 根据 pose 决定当前动画
-        anim = _pose_to_anim(pose)
+        anim = _pose_to_anim(pose, facing)
         frames = get_animation(anim)
         if anim != self._last_anim:
             # 切换动画，重置帧索引
@@ -105,25 +115,38 @@ class CatSpriteModel(Model):
         idx = self._frame_idx % len(frames)
         pm = frames[idx]
 
-        # 缩放到 size_px（保持长宽比，50x50 → size_px）
-        scale = size_px / max(pm.width(), pm.height())
+        # 缩放到 size_px（72x64 → 等比放大，宽度对齐 size_px）
+        # 用 NEAREST 缩放保持像素风锐利（不用 Smooth 避免模糊）
+        scale = size_px / pm.width()
         w = int(pm.width() * scale)
         h = int(pm.height() * scale)
+        scaled = pm.scaled(w, h, Qt.AspectRatioMode.IgnoreAspectRatio,
+                           Qt.TransformationMode.FastTransformation)
 
-        # 朝向翻转：素材朝左，facing=+1（右）需镜像
+        # 素材已分朝向，不需要镜像翻转
         painter.save()
-        if facing >= 0:
-            painter.translate(w / 2, 0)
-            painter.scale(-1, 1)
-            painter.translate(-w / 2, 0)
-        # 呼吸微缩放
-        breathe = 1.0 + 0.01 * math.sin(pose.breathe_phase)
-        # squash/stretch
+        # 呼吸微缩放（垂直）
+        breathe = 1.0 + 0.015 * math.sin(pose.breathe_phase)
+        # squash/stretch（扑击/蓄力的形变）
         squash = 1.0 - 0.15 * max(0.0, min(1.0, pose.body_squash))
-        painter.scale(1.0, squash * breathe)
-        # 居中绘制（猫脚在底部中心）
-        painter.drawPixmap(QPointF(-w / 2, -h / 2), pm.scaled(w, h, Qt.AspectRatioMode.KeepAspectRatio,
-                                                              Qt.TransformationMode.SmoothTransformation))
+        stretch = 1.0 + 0.1 * max(0.0, min(1.0, pose.body_stretch))
+        sy = breathe * squash * stretch
+        # 居中绘制（猫脚在底部中心，所以 x 居中、y 底部对齐）
+        # body_lift 让整张图上移（扑击跳起）
+        lift = max(0.0, min(60.0, pose.body_lift)) * scale * 0.5
+        painter.translate(0, -lift)
+        painter.scale(1.0, sy)
+        painter.drawPixmap(QPointF(-w / 2, -h / 2), scaled)
+
+        # 睡觉时叠加 zzz 气泡
+        if pose.asleep and self._zzz_frames:
+            zidx = self._zzz_idx % len(self._zzz_frames)
+            zpm = self._zzz_frames[zidx]
+            zscaled = zpm.scaled(w, h, Qt.AspectRatioMode.IgnoreAspectRatio,
+                                 Qt.TransformationMode.FastTransformation)
+            # zzz 显示在猫头上方右侧
+            painter.drawPixmap(QPointF(w * 0.15, -h * 0.9), zscaled)
+
         painter.restore()
 
     def create_state_machine(self, sprite: "PetSprite") -> StateMachine:
