@@ -1,0 +1,49 @@
+# GitHub Actions: 在 Windows 虚拟机上自动打包桌面宠物为 .exe
+# 推送代码或手动触发后，GitHub 会用 Windows 环境打包，
+# 产出 DesktopCat-windows.zip 供下载（无需 Windows 机器）。
+name: Build Windows
+
+on:
+  # 推送到任何分支时自动触发
+  push:
+    branches: ["**"]
+  # 允许手动触发（在 GitHub 仓库 Actions 页点 Run workflow）
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: 打包（PyInstaller）
+        run: python -m PyInstaller desktop-cat.spec --noconfirm
+
+      - name: 瘦身（删除无用 Qt 模块）
+        run: python scripts/strip_app.py win
+        shell: bash
+
+      - name: 打包成 zip
+        run: |
+          cd dist
+          Compress-Archive -Path DesktopCat -DestinationPath ../DesktopCat-windows.zip
+        shell: pwsh
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: DesktopCat-windows
+          path: DesktopCat-windows.zip
+          retention-days: 30
