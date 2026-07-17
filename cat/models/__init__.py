@@ -4,5 +4,4 @@
 并在本文件 import 一次即可进入注册表。
 """
 from cat.models import cat        # noqa: F401  2D 矢量猫，触发注册
-from cat.models import cat3d      # noqa: F401  3D 猫（Qt3D），触发注册
 from cat.models import catsprite  # noqa: F401  精灵序列帧猫（贴图），触发注册

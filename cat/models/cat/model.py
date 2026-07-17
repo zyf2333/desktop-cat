@@ -22,7 +22,6 @@ if TYPE_CHECKING:
 
 class CatModel(Model):
     name = "cat"
-    is_3d = False  # 2D QPainter 渲染
 
     def default_pose(self) -> CatPose:
         return CatPose()

@@ -7,16 +7,7 @@ from __future__ import annotations
 # ---- 模型 ----
 MODEL_NAME = "catsprite"  # 当前使用的模型；--model 启动参数会覆盖此值
                     # "catsprite" = 精灵序列帧猫（Desktop-Cat 素材，默认）；
-                    # "cat" = 2D 矢量猫；"cat3d" = 3D 猫（Qt3D）
-
-# ---- 3D 渲染（仅 is_3d 模型用）----
-RENDER_MODE = "auto"          # "auto"=按模型 is_3d 选；"2d"=强制 2D；"3d"=强制 3D
-CAMERA_DISTANCE = 22.0        # 3D 相机距猫的距离（世界单位）
-CAT3D_SCALE = 1.0             # 3D 猫的整体缩放（应用到 root transform）
-CAMERA_ORTHO_HALF = 8.0       # 正交投影半高（猫高约7-10单位，此值越小猫越大）
-CAMERA_YAW = -25.0            # 相机水平偏角（度），略侧视露出身体长度
-CAMERA_PITCH = -8.0           # 相机俯角（度），略俯视露出腿
-ENABLE_3D_LIGHTING = True     # 3D 光照开关
+                    # "cat" = 2D 矢量猫
 
 # ---- 鼠标追踪 ----
 MOUSE_POLL_HZ = 60                # 鼠标采样频率（Hz）

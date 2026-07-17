@@ -67,7 +67,6 @@ def _pose_to_anim(pose: CatPose, facing: int) -> str:
 
 class CatSpriteModel(Model):
     name = "catsprite"
-    is_3d = False  # 走 2D QPainter 渲染（贴图）
 
     def __init__(self) -> None:
         self._2d = CatModel()  # 复用 advance（呼吸/眨眼）

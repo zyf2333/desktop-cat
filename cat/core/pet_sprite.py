@@ -76,15 +76,60 @@ class PetSprite:
             if self._action is action and action.is_done():
                 self._action = None
         self.fsm.update(dt, mouse_state)
+        # 推进特效粒子（独立于 action，shed 结束后已生成的粒子继续飘落）
+        self._update_particles(dt)
+
+    def _update_particles(self, dt: float) -> None:
+        """推进挂在 sprite 上的特效粒子（掉毛等）。"""
+        import math
+        particles = getattr(self, "fur_particles", None)
+        if not particles:
+            return
+        gravity = 30.0
+        alive = []
+        for p in particles:
+            p.life -= dt
+            if p.life <= 0:
+                continue
+            p.vy += gravity * dt
+            p.vx *= 0.98
+            p.x += p.vx * dt
+            p.y += p.vy * dt
+            p.rot += p.rot_v * dt
+            alive.append(p)
+        self.fur_particles = alive
 
     def draw(self, painter: "QPainter", t: float) -> None:
-        """绘制：平移到宠物中心，委托给 model.draw。"""
+        """绘制：平移到宠物中心，委托给 model.draw；再画特效粒子（掉毛等）。"""
         painter.save()
         painter.translate(self.x, self.y)
         # 先推进渲染无关的自驱动状态（呼吸/眨眼），再委托绘制
         self.model.advance(self.pose, t)
         # facing 翻转交给 model.draw 内部处理（保持中心对称）
         self.model.draw(painter, self.pose, self.facing, t, self.size_px)
+        painter.restore()
+        # 特效粒子（相对猫中心坐标，由 Action 产生挂在 sprite 上）
+        self._draw_particles(painter)
+
+    def _draw_particles(self, painter: "QPainter") -> None:
+        """绘制挂在 sprite 上的特效粒子（如掉毛毛絮）。"""
+        particles = getattr(self, "fur_particles", None)
+        if not particles:
+            return
+        from PySide6.QtCore import QPointF, Qt
+        from PySide6.QtGui import QColor
+        painter.save()
+        painter.translate(self.x, self.y)
+        painter.setPen(Qt.PenStyle.NoPen)
+        for p in particles:
+            # 透明度随生命衰减
+            alpha = max(0, min(180, int(180 * (p.life / p.max_life))))
+            painter.setBrush(QColor(245, 240, 230, alpha))
+            painter.save()
+            painter.translate(p.x, p.y)
+            painter.rotate(p.rot)
+            painter.drawEllipse(QPointF(0, 0), p.size, p.size * 0.5)
+            painter.restore()
         painter.restore()
 
     # ---- 动作控制（供 State 调用）----

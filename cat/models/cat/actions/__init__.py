@@ -28,6 +28,7 @@ from cat.models.cat.actions.jump_pounce import JumpPounceAction
 from cat.models.cat.actions.notice import NoticeAction
 from cat.models.cat.actions.pounce import PounceAction
 from cat.models.cat.actions.run import RunAction
+from cat.models.cat.actions.shed import ShedAction
 from cat.models.cat.actions.sit import SitAction
 from cat.models.cat.actions.sleep import SleepAction
 from cat.models.cat.actions.sniff import SniffAction
@@ -64,7 +65,7 @@ REGISTRY: Dict[str, Dict[str, Type[Action]]] = {
     "sleep":    {"default": SleepAction},
     "groom":    {"default": GroomAction},
     "stretch":  {"default": StretchAction},
-    # play 族将在步骤4加入（swat/jump_pounce/wrestle/sniff）
+    "shed":     {"default": ShedAction},   # 掉毛
 }
 
 # 空闲动作选择表（带权重）。variant=None 表示由 make_action 按个性随机选变体。
@@ -73,6 +74,7 @@ IDLE_ACTIONS = [
     {"family": "sit", "variant": None, "weight": 3},
     {"family": "stretch", "variant": None, "weight": 1},
     {"family": "groom", "variant": None, "weight": 2},
+    {"family": "shed", "variant": None, "weight": 2},   # 掉毛
 ]
 
 # 各族的默认变体（族只有 default 变体时用）
