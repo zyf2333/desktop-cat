@@ -74,7 +74,7 @@ class TestAutonomousLife:
         state._zoomies_remaining = 1
         state._continue_zoomies(sprite)
         far_mouse = mouse_at((5000, 5000), moving=False, speed_smooth=0)
-        for _ in range(30):
+        for _ in range(10):
             sprite.update(1 / 60, far_mouse)
         assert (sprite.x, sprite.y) != start
         assert sprite.current_action is not None

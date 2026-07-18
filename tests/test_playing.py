@@ -107,12 +107,13 @@ class TestPlayingState:
         sprite.fsm.transition_to("playing")
         # 鼠标贴着猫但静止（让 playing 动作播完后 mouse_state.moving=False）
         # 注意：playing 动作播完会 _after_play，达到 max_rounds 后回 idle
-        # 这里驱动足够久
+        # 这里只验证首次正常退出，避免回到自主生活后的随机状态影响断言。
         ms_still = ms_at((sprite.x + 20, sprite.y), moving=False, speed_smooth=0)
-        drive(sprite, ms_still, frames=400)
-        # 最终应在 idle（或 confused，因为静止可能触发 lost？不，静止不 lost）
-        # 回到自主生活后可能立即随机进入舔毛，三者都说明已正常退出追逐链。
-        assert sprite.fsm.current_name in ("idle", "playing", "grooming")
+        for _ in range(400):
+            sprite.update(1 / 60, ms_still)
+            if sprite.fsm.current_name != "playing":
+                break
+        assert sprite.fsm.current_name == "idle"
 
 
 class TestClickInteraction:
