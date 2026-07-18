@@ -15,7 +15,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Dict
 
 if TYPE_CHECKING:
-    from PySide6.QtGui import QPainter
+    from cat.qt import QPainter
 
     from .pet_sprite import PetSprite
     from .state_machine import StateMachine

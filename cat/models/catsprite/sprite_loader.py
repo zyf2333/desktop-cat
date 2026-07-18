@@ -10,9 +10,8 @@ from __future__ import annotations
 import os
 from typing import Dict, List, Optional, Tuple
 
-from PySide6.QtGui import QPixmap
-
 from cat.paths import asset_path
+from cat.qt import QPixmap
 
 # sprites 目录（兼容打包模式：打包后用 sys._MEIPASS，开发模式用项目根）
 _SPRITES_DIR = asset_path("sprites")

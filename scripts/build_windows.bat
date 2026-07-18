@@ -1,9 +1,11 @@
 @echo off
+chcp 65001 >nul
 REM Windows 一键打包脚本：打包 → 瘦身
 REM 产出：dist\DesktopCat\DesktopCat.exe（双击即可启动，无需 Python）
 REM 必须在 Windows 上运行（不能在 Mac 上跑这个）
 setlocal
 cd /d "%~dp0\.."
+set DESKTOP_CAT_QT_API=pyside6
 
 echo === 1/3 清理旧产物 ===
 if exist build rmdir /s /q build

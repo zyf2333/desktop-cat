@@ -14,13 +14,15 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import (
+from cat.qt import (
     QColor,
     QPainter,
     QPainterPath,
     QPen,
+    QPointF,
     QPolygonF,
+    QRectF,
+    Qt,
 )
 
 from cat.models.cat.poses import CatPose
@@ -45,8 +47,8 @@ R = 50.0  # 缩放基准半径
 
 def _outline_pen(width: float = 2.2) -> QPen:
     pen = QPen(COL_OUTLINE, width)
-    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-    pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+    pen.setCapStyle(Qt.RoundCap)
+    pen.setJoinStyle(Qt.RoundJoin)
     return pen
 
 
@@ -76,7 +78,7 @@ def draw_cat(painter: QPainter, pose: CatPose, facing: int, t: float, size_px: i
     # 身体倾斜
     painter.rotate(math.degrees(pose.body_tilt))
 
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    painter.setRenderHint(QPainter.Antialiasing, True)
     painter.setPen(_outline_pen())
 
     # 绘制顺序：阴影 → 尾巴 → 后腿 → 身体 → 前腿 → 头 → 表情
@@ -99,7 +101,7 @@ def _draw_shadow(painter: QPainter, pose: CatPose) -> None:
     # 跳得越高阴影越淡越小
     alpha = max(30, int(90 - lift * 1.2))
     rx = max(18.0, 30.0 - lift * 0.15)
-    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setPen(Qt.NoPen)
     painter.setBrush(QColor(0, 0, 0, alpha))
     painter.drawEllipse(QPointF(0, 40), rx, 6.0)
 
@@ -130,19 +132,19 @@ def _draw_tail(painter: QPainter, pose: CatPose, t: float) -> None:
     path = QPainterPath(root)
     path.cubicTo(c1, c2, tip)
     pen = _outline_pen(7.0)
-    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    pen.setCapStyle(Qt.RoundCap)
     painter.setPen(pen)
-    painter.setBrush(Qt.GlobalColor.transparent)
+    painter.setBrush(Qt.transparent)
     painter.drawPath(path)
     # 尾尖深色
-    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setPen(Qt.NoPen)
     painter.setBrush(COL_BODY_DARK)
     painter.drawEllipse(tip, 5.5, 5.5)
 
 
 def _draw_hind_legs(painter: QPainter, pose: CatPose) -> None:
     """后腿（两只小椭圆，在身体下方偏后）。"""
-    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setPen(Qt.NoPen)
     painter.setBrush(COL_BODY)
     # 后腿微动
     sway = math.sin(pose.leg_phase) * pose.leg_stride * 4
@@ -161,12 +163,11 @@ def _draw_body(painter: QPainter, pose: CatPose) -> None:
     # 主体椭圆
     painter.drawEllipse(QPointF(0, 12), 36, 26)
     # 肚子
-    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setPen(Qt.NoPen)
     painter.setBrush(COL_BELLY)
     painter.drawEllipse(QPointF(-2, 18), 24, 18)
     # 条纹（身体顶部几道深色短线）
-    painter.setPen(QPen(COL_BODY_DARK, 2.4, Qt.PenStyle.SolidLine,
-                        Qt.PenCapStyle.RoundCap))
+    painter.setPen(QPen(COL_BODY_DARK, 2.4, Qt.SolidLine, Qt.RoundCap))
     painter.drawLine(QPointF(-18, -4), QPointF(-12, -8))
     painter.drawLine(QPointF(-4, -10), QPointF(4, -10))
     painter.drawLine(QPointF(12, -8), QPointF(18, -4))
@@ -174,7 +175,7 @@ def _draw_body(painter: QPainter, pose: CatPose) -> None:
 
 def _draw_front_legs(painter: QPainter, pose: CatPose) -> None:
     """前腿。舔毛时抬起一只爪子。"""
-    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setPen(Qt.NoPen)
     painter.setBrush(COL_BODY)
     if pose.grooming:
         # 一只前爪举到脸前
@@ -252,7 +253,7 @@ def _draw_head(painter: QPainter, pose: CatPose, t: float) -> None:
     painter.drawPolygon(ear_l)
     painter.drawPolygon(ear_r)
     # 耳内粉
-    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setPen(Qt.NoPen)
     painter.setBrush(COL_INNER_EAR)
     in_top_dy = ear_top_dy + 6
     in_l = QPolygonF([QPointF(-23, -8), QPointF(-19 - ear_top_dx, in_top_dy), QPointF(-13, -12)])
@@ -266,7 +267,7 @@ def _draw_head(painter: QPainter, pose: CatPose, t: float) -> None:
     painter.drawEllipse(QPointF(0, 0), 26, 24)
 
     # 脸颊米白（嘴部区域）
-    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setPen(Qt.NoPen)
     painter.setBrush(COL_BELLY)
     painter.drawEllipse(QPointF(0, 8), 16, 12)
 
@@ -274,7 +275,7 @@ def _draw_head(painter: QPainter, pose: CatPose, t: float) -> None:
     _draw_eyes(painter, pose)
 
     # 鼻子
-    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setPen(Qt.NoPen)
     painter.setBrush(COL_NOSE)
     painter.drawEllipse(QPointF(0, 6), 3.2, 2.4)
     # 嘴（根据 pose.mouth 选不同嘴形）
@@ -301,7 +302,7 @@ def _draw_mouth(painter: QPainter, pose: CatPose) -> None:
     lick:  舔舌（舌头伸出）
     yawn:  打哈欠（大椭圆）
     """
-    pen = QPen(COL_OUTLINE, 1.6, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
+    pen = QPen(COL_OUTLINE, 1.6, Qt.SolidLine, Qt.RoundCap)
     # 人中线（鼻到嘴的中点）
     painter.setPen(pen)
     painter.drawLine(QPointF(0, 8), QPointF(0, 11))
@@ -315,10 +316,10 @@ def _draw_mouth(painter: QPainter, pose: CatPose) -> None:
     elif mouth == "lick":
         # 舔舌：嘴 + 粉色舌头下垂
         painter.setPen(pen)
-        painter.setBrush(Qt.GlobalColor.transparent)
+        painter.setBrush(Qt.transparent)
         painter.drawArc(QRectF(-6, 9, 6, 6), 0 * 16, 90 * 16)
         painter.drawArc(QRectF(0, 9, 6, 6), 90 * 16, 90 * 16)
-        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setPen(Qt.NoPen)
         painter.setBrush(QColor("#F4B8A8"))
         painter.drawEllipse(QPointF(0, 13), 2.5, 4.0)
     elif mouth == "yawn":
@@ -329,7 +330,7 @@ def _draw_mouth(painter: QPainter, pose: CatPose) -> None:
     else:
         # smile：默认两道小弧
         painter.setPen(pen)
-        painter.setBrush(Qt.GlobalColor.transparent)
+        painter.setBrush(Qt.transparent)
         painter.drawArc(QRectF(-6, 9, 6, 6), 0 * 16, 90 * 16)
         painter.drawArc(QRectF(0, 9, 6, 6), 90 * 16, 90 * 16)
 
@@ -343,7 +344,7 @@ def _draw_status_bubble(painter: QPainter, pose: CatPose, t: float) -> None:
         font.setBold(True)
         painter.setFont(font)
         zz = "z" * (1 + int(t * 1.5) % 3)
-        painter.drawText(QRectF(16, -34, 24, 16), Qt.AlignmentFlag.AlignCenter, zz)
+        painter.drawText(QRectF(16, -34, 24, 16), Qt.AlignCenter, zz)
     elif pose.confused:
         # 困惑：头顶飘一个 "?"，带轻微浮动
         bob = math.sin(t * 3.0) * 2.0
@@ -352,7 +353,7 @@ def _draw_status_bubble(painter: QPainter, pose: CatPose, t: float) -> None:
         font.setPointSize(14)
         font.setBold(True)
         painter.setFont(font)
-        painter.drawText(QRectF(-8, -42 + bob, 24, 20), Qt.AlignmentFlag.AlignCenter, "?")
+        painter.drawText(QRectF(-8, -42 + bob, 24, 20), Qt.AlignCenter, "?")
 
 
 def _draw_eyes(painter: QPainter, pose: CatPose) -> None:
@@ -368,9 +369,8 @@ def _draw_eyes(painter: QPainter, pose: CatPose) -> None:
 
     if open_level <= 0.05 or pose.asleep:
         # 闭眼：画一道弧
-        painter.setPen(QPen(COL_OUTLINE, 1.8, Qt.PenStyle.SolidLine,
-                            Qt.PenCapStyle.RoundCap))
-        painter.setBrush(Qt.GlobalColor.transparent)
+        painter.setPen(QPen(COL_OUTLINE, 1.8, Qt.SolidLine, Qt.RoundCap))
+        painter.setBrush(Qt.transparent)
         painter.drawArc(QRectF(-14, -3, 8, 6), 0 * 16, 180 * 16)
         painter.drawArc(QRectF(6, -3, 8, 6), 0 * 16, 180 * 16)
         return
@@ -382,7 +382,7 @@ def _draw_eyes(painter: QPainter, pose: CatPose) -> None:
     painter.drawEllipse(QPointF(-10, -2), 5, eye_h)
     painter.drawEllipse(QPointF(10, -2), 5, eye_h)
     # 瞳孔：dilate 越大瞳孔越宽越圆（兴奋），越小越细（放松，竖瞳）
-    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setPen(Qt.NoPen)
     painter.setBrush(COL_EYE)
     # 竖瞳宽度 1.4 → 圆瞳宽度 3.8；高度随 dilate 略减（变圆）
     pw = 1.4 + dilate * 2.4

@@ -13,10 +13,8 @@ import time
 from dataclasses import dataclass
 from typing import Tuple
 
-from PySide6.QtCore import QObject, Qt, QTimer, Signal
-from PySide6.QtGui import QCursor
-
 from cat import config
+from cat.qt import QObject, QCursor, Qt, QTimer, Signal
 from cat.utils.geometry import SpeedSmoother
 
 Point = Tuple[float, float]
@@ -42,7 +40,7 @@ class MouseTracker(QObject):
     def __init__(self) -> None:
         super().__init__()
         self._timer = QTimer(self)
-        self._timer.setTimerType(Qt.TimerType.PreciseTimer)
+        self._timer.setTimerType(Qt.PreciseTimer)
         self._timer.timeout.connect(self._tick)
 
         self._smoother = SpeedSmoother(config.MOUSE_SMOOTH_WINDOW_S)

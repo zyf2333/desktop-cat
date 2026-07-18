@@ -19,7 +19,7 @@ from .personality import Personality
 from .state_machine import StateMachine
 
 if TYPE_CHECKING:
-    from PySide6.QtGui import QPainter
+    from cat.qt import QPainter
 
 
 class PetSprite:
@@ -133,11 +133,10 @@ class PetSprite:
         particles = getattr(self, "fur_particles", None)
         if not particles:
             return
-        from PySide6.QtCore import QPointF, Qt
-        from PySide6.QtGui import QColor
+        from cat.qt import QColor, QPointF, Qt
         painter.save()
         painter.translate(self.x, self.y)
-        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setPen(Qt.NoPen)
         for p in particles:
             # 透明度随生命衰减
             alpha = max(0, min(180, int(180 * (p.life / p.max_life))))
@@ -152,10 +151,9 @@ class PetSprite:
     def _draw_droppings(self, painter: "QPainter") -> None:
         if not self.droppings:
             return
-        from PySide6.QtCore import QPointF, Qt
-        from PySide6.QtGui import QColor, QPainter, QPen
+        from cat.qt import QColor, QPainter, QPen, QPointF
         painter.save()
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+        painter.setRenderHint(QPainter.Antialiasing, False)
         for dropping in self.droppings:
             outline = QColor(55, 30, 18)
             brown = QColor(112, 67, 38)

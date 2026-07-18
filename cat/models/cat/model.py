@@ -15,7 +15,7 @@ from cat.models.cat.poses import CatPose
 from cat.models.cat.states import build_cat_state_machine
 
 if TYPE_CHECKING:
-    from PySide6.QtGui import QPainter
+    from cat.qt import QPainter
 
     from cat.core.pet_sprite import PetSprite
 

@@ -143,9 +143,14 @@ def strip_macos(app_path: str) -> int:
 def strip_windows(app_dir: str) -> int:
     """清理 Windows 目录。返回释放字节数。"""
     total = 0
-    # PySide6 可能在 _internal/PySide6 或直接 PySide6
-    for pyside_dir in (os.path.join(app_dir, 'PySide6'),
-                       os.path.join(app_dir, '_internal', 'PySide6')):
+    # Qt 绑定可能在 _internal 下或应用根目录，兼容 PySide6/PySide2。
+    pyside_dirs = []
+    for package in ('PySide6', 'PySide2'):
+        pyside_dirs.extend((
+            os.path.join(app_dir, package),
+            os.path.join(app_dir, '_internal', package),
+        ))
+    for pyside_dir in pyside_dirs:
         if not os.path.isdir(pyside_dir):
             continue
         for entry in os.listdir(pyside_dir):
@@ -153,12 +158,13 @@ def strip_windows(app_dir: str) -> int:
             # 删无用模块（.pyd / .py / .dll）+ 开发工具
             if _matches_trash(entry) or entry in _QT_DEV_TOOLS:
                 total += _safe_remove(full)
-        # 删 Qt 的 dll（PySide6/Qt6/bin 或 PySide6 根目录下的 .dll）
-        qt_bin = os.path.join(pyside_dir, 'Qt6', 'bin')
-        if os.path.isdir(qt_bin):
-            for entry in os.listdir(qt_bin):
-                if _matches_trash(entry):
-                    total += _safe_remove(os.path.join(qt_bin, entry))
+        # 删 Qt 的 dll（Qt6 使用 Qt6/bin，Qt5 常见于 Qt/bin）。
+        for qt_dir_name in ('Qt6', 'Qt'):
+            qt_bin = os.path.join(pyside_dir, qt_dir_name, 'bin')
+            if os.path.isdir(qt_bin):
+                for entry in os.listdir(qt_bin):
+                    if _matches_trash(entry):
+                        total += _safe_remove(os.path.join(qt_bin, entry))
         # 删无用 plugins
         qt_plugins = os.path.join(pyside_dir, 'plugins')
         if os.path.isdir(qt_plugins):

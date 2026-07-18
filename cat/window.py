@@ -14,14 +14,31 @@ from __future__ import annotations
 
 import time
 
-from PySide6.QtCore import QElapsedTimer, QPoint, QPointF, Qt, QTimer
-from PySide6.QtGui import QColor, QPainter
-from PySide6.QtWidgets import QSizePolicy, QWidget
-
 from cat import config
 from cat.core.model import get_model
 from cat.core.pet_sprite import PetSprite
 from cat.mouse_tracker import MouseState, MouseTracker
+from cat.qt import (
+    QColor,
+    QCursor,
+    QElapsedTimer,
+    QGuiApplication,
+    QPainter,
+    QPoint,
+    QPointF,
+    QRegion,
+    QSizePolicy,
+    Qt,
+    QTimer,
+    QWidget,
+)
+
+
+def _event_position(event) -> QPointF:
+    """返回兼容 Qt5/Qt6 的窗口内鼠标坐标。"""
+    if hasattr(event, "position"):
+        return event.position()
+    return event.localPos()
 
 
 class PetWindow(QWidget):
@@ -31,19 +48,19 @@ class PetWindow(QWidget):
         # FramelessWindowHint + Tool（不在任务栏出现）+ StayOnTop
         super().__init__(None)
         self.setWindowFlags(
-            Qt.WindowType.FramelessWindowHint
-            | Qt.WindowType.WindowStaysOnTopHint
-            | Qt.WindowType.Tool
+            Qt.FramelessWindowHint
+            | Qt.WindowStaysOnTopHint
+            | Qt.Tool
         )
         # 透明背景（但保留鼠标事件接收能力，由 setMask 控制热区）
-        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WA_NoSystemBackground, True)
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
 
         self.setFixedSize(self.screen().virtualSize().width(),
                           self.screen().virtualSize().height())
         self.move(0, 0)
         self.setStyleSheet("background: transparent;")
-        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.setMouseTracking(True)
 
         # 模型与精灵
@@ -77,7 +94,7 @@ class PetWindow(QWidget):
         self._elapsed.start()
         self._last_ms = 0
         self._frame_timer = QTimer(self)
-        self._frame_timer.setTimerType(Qt.TimerType.PreciseTimer)
+        self._frame_timer.setTimerType(Qt.PreciseTimer)
         self._frame_timer.timeout.connect(self._tick)
         self._global_t0 = time.monotonic()
 
@@ -85,7 +102,7 @@ class PetWindow(QWidget):
     def start(self) -> None:
         # 不用 showFullScreen()：它在 macOS 会把窗口推入独立的"全屏 Space"。
         # 改用普通窗口 + 手动几何覆盖整个虚拟桌面 + 置顶。
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
         geo = self.screen().virtualGeometry()
         self.setGeometry(geo)
         self.showNormal()
@@ -101,7 +118,6 @@ class PetWindow(QWidget):
         # 启动时 aggressive 一次（强制到最前），之后周期性只重设 level
         # （不抢焦点，避免打断用户打字/看视频）。
         from cat.platform_topmost import force_topmost
-        from PySide6.QtCore import QTimer
         force_topmost(self, aggressive=True)  # 启动：强制到最前
         QTimer.singleShot(300, lambda: force_topmost(self, aggressive=True))  # 显示后重保
         self._topmost_timer = QTimer(self)
@@ -122,7 +138,6 @@ class PetWindow(QWidget):
         掩码内可接收点击。每帧调用以跟随宠物移动。
         离屏平台（offscreen）不支持 mask，跳过。
         """
-        from PySide6.QtGui import QGuiApplication, QRegion
         try:
             if QGuiApplication.platformName() == "offscreen":
                 return
@@ -130,7 +145,7 @@ class PetWindow(QWidget):
             pass
         r = int(self.sprite.hit_radius)
         cx, cy = int(self.sprite.x), int(self.sprite.y)
-        region = QRegion(cx - r, cy - r, 2 * r, 2 * r, QRegion.RegionType.Ellipse)
+        region = QRegion(cx - r, cy - r, 2 * r, 2 * r, QRegion.Ellipse)
         # 便便是持久桌面元素，需要纳入窗口可见区域；范围很小，尽量不影响点击。
         for dropping in self.sprite.droppings:
             s = max(4, int(dropping.size * 1.4))
@@ -139,20 +154,20 @@ class PetWindow(QWidget):
                 int(dropping.y) - s * 2,
                 s * 2,
                 s * 3,
-                QRegion.RegionType.Ellipse,
+                QRegion.Ellipse,
             ))
         self.setMask(region)
 
     # ---- 点击 ----
     def mousePressEvent(self, event) -> None:
-        pos = event.position()
+        pos = _event_position(event)
         x, y = pos.x(), pos.y()
-        if event.button() == Qt.MouseButton.LeftButton and self.sprite.remove_dropping_at(x, y):
+        if event.button() == Qt.LeftButton and self.sprite.remove_dropping_at(x, y):
             self._update_mask()
             self.update()
             event.accept()
             return
-        if event.button() == Qt.MouseButton.LeftButton and self.sprite.contains(x, y):
+        if event.button() == Qt.LeftButton and self.sprite.contains(x, y):
             # 先记下按压；移动超过阈值才算拖拽，否则释放时按普通点击处理。
             self._press_pos = QPointF(x, y)
             self._drag_offset = (self.sprite.x - x, self.sprite.y - y)
@@ -161,14 +176,14 @@ class PetWindow(QWidget):
         event.ignore()
 
     def mouseMoveEvent(self, event) -> None:
-        pos = event.position()
+        pos = _event_position(event)
         x, y = pos.x(), pos.y()
-        if self._press_pos is not None and event.buttons() & Qt.MouseButton.LeftButton:
+        if self._press_pos is not None and event.buttons() & Qt.LeftButton:
             moved = ((x - self._press_pos.x()) ** 2 + (y - self._press_pos.y()) ** 2) ** 0.5
             if moved >= 4.0 and not self._dragging:
                 self._dragging = True
                 self.sprite.begin_drag()
-                self.setCursor(Qt.CursorShape.ClosedHandCursor)
+                self.setCursor(Qt.ClosedHandCursor)
             if self._dragging:
                 self.sprite.drag_to(x + self._drag_offset[0], y + self._drag_offset[1])
                 self._update_mask()
@@ -177,35 +192,35 @@ class PetWindow(QWidget):
             return
         if self.sprite.contains(x, y):
             self.sprite.on_hover(x, y)
-            self.setCursor(Qt.CursorShape.OpenHandCursor)
+            self.setCursor(Qt.OpenHandCursor)
         elif self.sprite.dropping_at(x, y) is not None:
-            self.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.setCursor(Qt.PointingHandCursor)
         else:
             self.unsetCursor()
         event.accept()
 
     def mouseReleaseEvent(self, event) -> None:
-        if event.button() != Qt.MouseButton.LeftButton or self._press_pos is None:
+        if event.button() != Qt.LeftButton or self._press_pos is None:
             event.ignore()
             return
-        pos = event.position()
+        pos = _event_position(event)
         if self._dragging:
             self.sprite.end_drag()
         else:
             self.sprite.on_click(pos.x(), pos.y())
         self._press_pos = None
         self._dragging = False
-        self.setCursor(Qt.CursorShape.OpenHandCursor)
+        self.setCursor(Qt.OpenHandCursor)
         self._update_mask()
         self.update()
         event.accept()
 
     def enterEvent(self, event) -> None:
-        pos = event.position()
+        pos = self.mapFromGlobal(QCursor.pos())
         # mask 还包含便便的小区域；只有真正进入猫的热区才触发警觉。
         if self.sprite.contains(pos.x(), pos.y()):
             self.sprite.on_hover(pos.x(), pos.y())
-            self.setCursor(Qt.CursorShape.OpenHandCursor)
+            self.setCursor(Qt.OpenHandCursor)
         super().enterEvent(event)
 
     def leaveEvent(self, event) -> None:
@@ -243,13 +258,13 @@ class PetWindow(QWidget):
     # ---- 绘制 ----
     def paintEvent(self, _event) -> None:
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+        painter.setRenderHint(QPainter.Antialiasing, True)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
 
         # 整窗透明（不清背景色）
-        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
+        painter.setCompositionMode(QPainter.CompositionMode_Source)
         painter.fillRect(self.rect(), QColor(0, 0, 0, 0))
-        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
+        painter.setCompositionMode(QPainter.CompositionMode_SourceOver)
 
         t = time.monotonic() - self._global_t0
         self.sprite.draw(painter, t)
@@ -258,17 +273,17 @@ class PetWindow(QWidget):
             self._draw_debug(painter)
 
     def _draw_debug(self, painter: QPainter) -> None:
-        painter.setPen(Qt.GlobalColor.red)
+        painter.setPen(Qt.red)
         # 猫锚点
         painter.drawEllipse(
             int(self.sprite.x) - 3, int(self.sprite.y) - 3, 6, 6
         )
         # 热区圆
         r = int(self.sprite.hit_radius)
-        painter.setPen(Qt.GlobalColor.cyan)
+        painter.setPen(Qt.cyan)
         painter.drawEllipse(QPointF(self.sprite.x, self.sprite.y), r, r)
         # 状态名
-        painter.setPen(Qt.GlobalColor.yellow)
+        painter.setPen(Qt.yellow)
         painter.drawText(
             int(self.sprite.x) + 10,
             int(self.sprite.y) - 10,

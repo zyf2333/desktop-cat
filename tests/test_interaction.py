@@ -36,6 +36,32 @@ class TestHover:
         assert sprite.current_action is action
 
 
+class TestQtCompatibility:
+    def test_qt5_mouse_event_position_fallback(self):
+        from cat.qt import QPointF
+        from cat.window import _event_position
+
+        class Qt5MouseEvent:
+            """模拟只提供 localPos() 的 Qt5 鼠标事件。"""
+
+            def localPos(self):
+                return QPointF(12.0, 34.0)
+
+        pos = _event_position(Qt5MouseEvent())
+        assert (pos.x(), pos.y()) == (12.0, 34.0)
+
+    def test_qt5_event_loop_fallback(self):
+        from cat.qt import exec_app
+
+        class Qt5Application:
+            """模拟只提供 exec_() 的 Qt5 应用。"""
+
+            def exec_(self):
+                return 7
+
+        assert exec_app(Qt5Application()) == 7
+
+
 class TestDrag:
     def test_drag_moves_sprite_and_pauses_fsm(self):
         sprite = make_sprite()

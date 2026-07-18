@@ -17,7 +17,7 @@
 - 🎨 **双外观模式**：像素精灵动画（默认）或 2D 矢量绘制（QPainter）
 - 🧠 **个性系统**：5 维个性（活泼/警觉/耐心/玩心/好奇），换猫给不同个性
 - 🧩 **模型可替换**：主框架模型无关，新增模型 = 新建一个目录
-- ⚡ **轻量**：基于 PySide6 原生桌面窗口，无浏览器运行时
+- ⚡ **轻量**：基于 Qt 原生桌面窗口，无浏览器运行时
 
 ## 快速开始
 
@@ -43,6 +43,14 @@ python run.py --model cat        # 2D 矢量猫（QPainter）
 ```
 
 默认模型也可以通过 `cat/config.py` 中的 `MODEL_NAME` 修改。
+
+### Windows 版本
+
+- Windows 10/11：Python 3.10+、PySide6/Qt6，使用 `scripts\build_windows.bat` 打包。
+- Windows 7 SP1 x64：Python 3.8、PySide2/Qt5，使用 `scripts\build_windows7.bat` 打包。
+- 两种版本共用同一套业务代码，依赖和打包产物必须分开，不能混用虚拟环境。
+
+Windows 7 的详细准备和打包步骤见 [`docs/打包说明.md`](docs/打包说明.md)。
 
 ### 指定模型（未来）
 

@@ -24,9 +24,6 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING, Any, List
 
-from PySide6.QtCore import QPointF, Qt
-from PySide6.QtGui import QPainter, QPixmap
-
 from cat import config
 from cat.core.model import Model
 from cat.core.state_machine import StateMachine
@@ -34,6 +31,7 @@ from cat.models.cat.model import CatModel  # 复用 advance
 from cat.models.cat.poses import CatPose
 from cat.models.cat.states import build_cat_state_machine
 from cat.models.catsprite.sprite_loader import get_animation, load_all
+from cat.qt import QPainter, QPixmap, QPointF, Qt
 
 if TYPE_CHECKING:
     from cat.core.pet_sprite import PetSprite
@@ -128,8 +126,7 @@ class CatSpriteModel(Model):
         scale = size_px / pm.width()
         w = int(pm.width() * scale)
         h = int(pm.height() * scale)
-        scaled = pm.scaled(w, h, Qt.AspectRatioMode.IgnoreAspectRatio,
-                           Qt.TransformationMode.FastTransformation)
+        scaled = pm.scaled(w, h, Qt.IgnoreAspectRatio, Qt.FastTransformation)
 
         # 素材已分朝向，不需要镜像翻转
         painter.save()

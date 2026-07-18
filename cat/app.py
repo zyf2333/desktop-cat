@@ -7,9 +7,8 @@ from __future__ import annotations
 import argparse
 import sys
 
-from PySide6.QtWidgets import QApplication
-
 from cat import config
+from cat.qt import QApplication, exec_app
 from cat.tray import TrayController
 from cat.window import PetWindow
 
@@ -32,7 +31,7 @@ def main(argv=None) -> int:
     tray = TrayController(app)
     tray.show()
 
-    code = app.exec()
+    code = exec_app(app)
     window.stop()
     return code
 

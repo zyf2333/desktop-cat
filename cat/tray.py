@@ -4,22 +4,30 @@ macOS 上会出现在屏幕顶部菜单栏。提供"退出"菜单项。
 """
 from __future__ import annotations
 
-from PySide6.QtGui import QAction, QIcon, QPixmap
-from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
+from cat.qt import (
+    QAction,
+    QApplication,
+    QColor,
+    QIcon,
+    QMenu,
+    QPainter,
+    QPixmap,
+    QPointF,
+    QPolygonF,
+    QSystemTrayIcon,
+    Qt,
+)
 
 
 def _make_icon() -> QIcon:
     """生成一个简单的程序图标（橙色圆点带猫耳剪影），无外部素材。"""
-    from PySide6.QtCore import Qt, QPointF
-    from PySide6.QtGui import QColor, QPainter, QPolygonF
-
     pix = QPixmap(32, 32)
-    pix.fill(Qt.GlobalColor.transparent)
+    pix.fill(Qt.transparent)
     p = QPainter(pix)
-    p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    p.setRenderHint(QPainter.Antialiasing, True)
     # 圆脸
     p.setBrush(QColor("#E8820E"))
-    p.setPen(Qt.PenStyle.NoPen)
+    p.setPen(Qt.NoPen)
     p.drawEllipse(6, 8, 20, 20)
     # 两只耳朵（三角）
     ear_l = QPolygonF([QPointF(8, 9), QPointF(11, 2), QPointF(14, 9)])
@@ -49,7 +57,7 @@ class TrayController:
         self._tray.show()
 
     def _on_activated(self, reason) -> None:
-        if reason == QSystemTrayIcon.ActivationReason.Trigger:
+        if reason == QSystemTrayIcon.Trigger:
             self._tray.contextMenu().popup(
                 self._tray.geometry().center()
             )
