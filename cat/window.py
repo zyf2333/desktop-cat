@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import time
 
-from PySide6.QtCore import QElapsedTimer, QPointF, Qt, QTimer
+from PySide6.QtCore import QElapsedTimer, QPoint, QPointF, Qt, QTimer
 from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
@@ -44,6 +44,7 @@ class PetWindow(QWidget):
         self.move(0, 0)
         self.setStyleSheet("background: transparent;")
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.setMouseTracking(True)
 
         # 模型与精灵
         model = get_model(model_name)
@@ -53,7 +54,12 @@ class PetWindow(QWidget):
             y=self.height() / 2,
             size_px=config.PET_SIZE_PX,
         )
+        self.sprite.world_bounds = (0.0, 0.0, float(self.width()), float(self.height()))
         self.sprite.start("idle")
+
+        self._press_pos = None
+        self._drag_offset = (0.0, 0.0)
+        self._dragging = False
 
         # 鼠标追踪
         self._tracker = MouseTracker()
@@ -125,20 +131,100 @@ class PetWindow(QWidget):
         r = int(self.sprite.hit_radius)
         cx, cy = int(self.sprite.x), int(self.sprite.y)
         region = QRegion(cx - r, cy - r, 2 * r, 2 * r, QRegion.RegionType.Ellipse)
+        # 便便是持久桌面元素，需要纳入窗口可见区域；范围很小，尽量不影响点击。
+        for dropping in self.sprite.droppings:
+            s = max(4, int(dropping.size * 1.4))
+            region = region.united(QRegion(
+                int(dropping.x) - s,
+                int(dropping.y) - s * 2,
+                s * 2,
+                s * 3,
+                QRegion.RegionType.Ellipse,
+            ))
         self.setMask(region)
 
     # ---- 点击 ----
     def mousePressEvent(self, event) -> None:
         pos = event.position()
         x, y = pos.x(), pos.y()
-        if self.sprite.contains(x, y):
-            self.sprite.on_click(x, y)
+        if event.button() == Qt.MouseButton.LeftButton and self.sprite.remove_dropping_at(x, y):
+            self._update_mask()
             self.update()
-        # 不调 super，让掩码外区域天然穿透
+            event.accept()
+            return
+        if event.button() == Qt.MouseButton.LeftButton and self.sprite.contains(x, y):
+            # 先记下按压；移动超过阈值才算拖拽，否则释放时按普通点击处理。
+            self._press_pos = QPointF(x, y)
+            self._drag_offset = (self.sprite.x - x, self.sprite.y - y)
+            event.accept()
+            return
+        event.ignore()
+
+    def mouseMoveEvent(self, event) -> None:
+        pos = event.position()
+        x, y = pos.x(), pos.y()
+        if self._press_pos is not None and event.buttons() & Qt.MouseButton.LeftButton:
+            moved = ((x - self._press_pos.x()) ** 2 + (y - self._press_pos.y()) ** 2) ** 0.5
+            if moved >= 4.0 and not self._dragging:
+                self._dragging = True
+                self.sprite.begin_drag()
+                self.setCursor(Qt.CursorShape.ClosedHandCursor)
+            if self._dragging:
+                self.sprite.drag_to(x + self._drag_offset[0], y + self._drag_offset[1])
+                self._update_mask()
+                self.update()
+            event.accept()
+            return
+        if self.sprite.contains(x, y):
+            self.sprite.on_hover(x, y)
+            self.setCursor(Qt.CursorShape.OpenHandCursor)
+        elif self.sprite.dropping_at(x, y) is not None:
+            self.setCursor(Qt.CursorShape.PointingHandCursor)
+        else:
+            self.unsetCursor()
+        event.accept()
+
+    def mouseReleaseEvent(self, event) -> None:
+        if event.button() != Qt.MouseButton.LeftButton or self._press_pos is None:
+            event.ignore()
+            return
+        pos = event.position()
+        if self._dragging:
+            self.sprite.end_drag()
+        else:
+            self.sprite.on_click(pos.x(), pos.y())
+        self._press_pos = None
+        self._dragging = False
+        self.setCursor(Qt.CursorShape.OpenHandCursor)
+        self._update_mask()
+        self.update()
+        event.accept()
+
+    def enterEvent(self, event) -> None:
+        pos = event.position()
+        # mask 还包含便便的小区域；只有真正进入猫的热区才触发警觉。
+        if self.sprite.contains(pos.x(), pos.y()):
+            self.sprite.on_hover(pos.x(), pos.y())
+            self.setCursor(Qt.CursorShape.OpenHandCursor)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event) -> None:
+        if not self._dragging:
+            self.sprite.on_hover_leave()
+            self.unsetCursor()
+        super().leaveEvent(event)
 
     # ---- 鼠标追踪 ----
     def _on_mouse(self, state: MouseState) -> None:
         self._latest_mouse = state
+        # 透明窗口的 mask 会随猫移动，enter/leave 事件偶尔可能缺失；
+        # 用真实全局鼠标位置每次校准，避免悬停标记残留导致刚睡就醒。
+        local = self.mapFromGlobal(QPoint(int(state.pos[0]), int(state.pos[1])))
+        inside = self.sprite.contains(local.x(), local.y())
+        if inside and not self.sprite.is_hovered and not self.sprite.is_dragging:
+            self.sprite.on_hover(local.x(), local.y())
+        elif not inside and self.sprite.is_hovered and not self.sprite.is_dragging:
+            self.sprite.on_hover_leave()
 
     # ---- 主循环 ----
     def _tick(self) -> None:

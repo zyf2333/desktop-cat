@@ -1,28 +1,30 @@
 # 桌面宠物 · Desktop Pet
 
 一只会追着鼠标跑、被甩脱就放弃、靠近时会突然扑过来、像逗猫棒一样玩的桌面宠物。
-支持 2D 矢量猫和 3D low-poly 猫（Qt3D），架构支持替换为任意其他模型。
+当前提供像素精灵猫和 2D 矢量猫两种外观，架构支持替换为其他宠物模型。
 
-![status](https://img.shields.io/badge/status-v0.4%203D%20(Qt3D)-orange)
+![status](https://img.shields.io/badge/status-active-brightgreen)
 
 ## 特性
 
 - 🐱 **追鼠标**：中速追踪鼠标移动
+- 👀 **悬停反应**：鼠标碰到猫时会立刻抬头警觉，再判断是观察、潜行还是扑击
+- ✋ **拖拽互动**：按住猫咪即可拖到桌面任意位置，放下后会做出受惊反应
 - 💨 **甩脱判定**：鼠标快速甩动（>2500px/s 持续 0.3s）后放弃追逐
 - 🐾 **突然扑击**：靠近鼠标（<80px）时有概率蓄力后高速扑过去
-- 🎏 **逗猫棒玩法**：扑到后在鼠标旁玩（爪拍/跳扑/扭打/嗅闻），鼠标不动会腻走开
-- 😴 **丰富空闲**：溜达、坐、舔毛、伸懒腰、睡觉（鼠标久不动会睡着）
-- 🎨 **双渲染模式**：2D 矢量（QPainter）或 3D low-poly（Qt3D 真 3D）
+- 🎏 **逗猫棒玩法**：扑到后会抬爪抓鼠标，也会跳扑、扭打和嗅闻，鼠标不动会腻走开
+- 😴 **自主生活**：远离鼠标时会巡游、来回疯跑、自娱自乐、舔毛、排便或睡觉；便便会留在原地，点击后清理
+- 🎨 **双外观模式**：像素精灵动画（默认）或 2D 矢量绘制（QPainter）
 - 🧠 **个性系统**：5 维个性（活泼/警觉/耐心/玩心/好奇），换猫给不同个性
 - 🧩 **模型可替换**：主框架模型无关，新增模型 = 新建一个目录
-- ⚡ **轻量**：2D 常驻约 40-60MB
+- ⚡ **轻量**：基于 PySide6 原生桌面窗口，无浏览器运行时
 
 ## 快速开始
 
 ### 依赖
 
 - Python 3.10+
-- macOS（第一版）；架构为跨平台设计，未来可支持 Windows
+- macOS 或 Windows
 
 ### 安装与运行
 
@@ -31,17 +33,16 @@ pip install -r requirements.txt
 python run.py
 ```
 
-启动后桌面会出现一只橘猫。**退出方式**：点击 macOS 菜单栏的宠物图标 → 退出。
+启动后桌面会出现一只猫。**退出方式**：点击系统托盘（macOS 菜单栏）中的宠物图标 → 退出。
 
-### 选择 2D / 3D
+### 选择外观模型
 
 ```bash
-python run.py --model cat     # 2D 矢量猫（默认）
-python run.py --model cat3d   # 3D low-poly 猫（Qt3D 真 3D 渲染）
+python run.py --model catsprite  # 像素精灵猫（默认）
+python run.py --model cat        # 2D 矢量猫（QPainter）
 ```
 
-3D 模式下猫是真实的 3D 模型（球/柱/锥基本几何体拼装的 low-poly 猫），有光照和立体感。
-也可在 `cat/config.py` 设 `RENDER_MODE = "3d"` 强制 3D。
+默认模型也可以通过 `cat/config.py` 中的 `MODEL_NAME` 修改。
 
 ### 指定模型（未来）
 
@@ -119,8 +120,11 @@ desktop-cat/
 │   │   ├── action.py          # Action 基类
 │   │   ├── pet_sprite.py      # 通用宠物实体
 │   │   └── model.py           # Model 抽象基类 + 注册表
-│   ├── models/cat/            # 猫模型（绘制 + 动作 + 状态）
+│   ├── models/
+│   │   ├── cat/               # 2D 矢量猫（绘制 + 动作 + 状态）
+│   │   └── catsprite/         # 像素精灵猫（复用 cat 的行为系统）
 │   └── utils/geometry.py      # 几何/缓动工具
+├── assets/sprites/            # 像素猫动画素材
 └── tests/                     # 单元测试
 ```
 

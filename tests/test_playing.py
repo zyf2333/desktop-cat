@@ -42,7 +42,7 @@ class TestPlayActions:
         sprite = make_sprite(0, 0)
         swat = SwatAction(target=(50, 0), swats=2)
         swat.start(sprite)
-        for i in range(60):
+        for i in range(120):
             swat.update(sprite, 1 / 60)
             if swat.is_done():
                 break
@@ -111,7 +111,8 @@ class TestPlayingState:
         ms_still = ms_at((sprite.x + 20, sprite.y), moving=False, speed_smooth=0)
         drive(sprite, ms_still, frames=400)
         # 最终应在 idle（或 confused，因为静止可能触发 lost？不，静止不 lost）
-        assert sprite.fsm.current_name in ("idle", "playing")
+        # 回到自主生活后可能立即随机进入舔毛，三者都说明已正常退出追逐链。
+        assert sprite.fsm.current_name in ("idle", "playing", "grooming")
 
 
 class TestClickInteraction:

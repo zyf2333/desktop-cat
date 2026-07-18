@@ -10,7 +10,6 @@ import random
 
 from cat.core.action import Action
 from cat.models.cat.actions._helpers import reset_to_stand
-from cat.utils.geometry import clamp
 
 
 class SwatAction(Action):
@@ -31,8 +30,8 @@ class SwatAction(Action):
             # 玩心高的猫拍更多下
             n = random.randint(2, 3 + int(sprite.personality.playfulness * 3))
         self._swats_total = n
-        self._swat_period = 0.32  # 每拍一下的周期（秒）
-        self._total_time = self._swat_period * self._swats_total + 0.15
+        self._swat_period = 0.65  # 放慢：抬爪、停住抓取、再收回
+        self._total_time = self._swat_period * self._swats_total + 0.2
         pose = sprite.pose
         pose.alerted = True
         pose.ear_alert = 0.8
@@ -50,16 +49,22 @@ class SwatAction(Action):
         if abs(dx) > 2:
             sprite.facing = 1 if dx > 0 else -1
 
-        # 爪子拍打：paw_raise 在每周期内做 0→1→0 的快速抬落
+        # 爪子拍打：慢抬 → 顶部停住观察/抓取 → 慢收回。
         phase = (self._t % self._swat_period) / self._swat_period
-        # 抬起在前半段，拍下在后半段
-        pose.paw_raise = clamp(math.sin(phase * math.pi), 0.0, 1.0)
-        # 拍下瞬间身体微震
-        if phase > 0.5:
-            pose.body_squash = 0.35 + 0.08 * math.sin(phase * math.pi * 2)
+        if phase < 0.32:
+            local = phase / 0.32
+            pose.paw_raise = math.sin(local * math.pi / 2)
+        elif phase < 0.62:
+            pose.paw_raise = 1.0
+        else:
+            local = (phase - 0.62) / 0.38
+            pose.paw_raise = math.cos(local * math.pi / 2)
+        # 收爪时身体只有很轻的回弹，不再快速震动。
+        if phase > 0.62:
+            pose.body_squash = 0.35 + 0.035 * math.sin(phase * math.pi * 2)
         # 耳朵兴奋颤动
-        pose.ear_alert = 0.7 + 0.15 * math.sin(self._t * 20)
-        pose.tail_wag_phase += dt * 12.0
+        pose.ear_alert = 0.75 + 0.08 * math.sin(self._t * 10)
+        pose.tail_wag_phase += dt * 7.0
 
         if self._t >= self._total_time:
             reset_to_stand(pose)

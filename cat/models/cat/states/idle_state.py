@@ -16,6 +16,7 @@ from cat import config
 from cat.core.state_machine import State
 from cat.models.cat.actions import IDLE_ACTIONS, make_action, weighted_choice
 from cat.models.cat.states._intents import Intent, decide_intent
+from cat.models.cat.states._conditions import dist_to_mouse
 from cat.utils.geometry import clamp
 
 
@@ -32,7 +33,8 @@ class IdleState(State):
         self._home_x = sprite.x
         self._home_y = sprite.y
         self._idle_timer = 0.0
-        self._next_action_at = random.uniform(*config.IDLE_ACTION_INTERVAL_S)
+        self._next_action_at = self._next_interval(sprite)
+        self._zoomies_remaining = 0
         # 开始时先播放一个小站立姿态（清理上一状态残留动作）
         sprite.clear_action()
         sprite.pose.leg_stride = 0.0
@@ -55,8 +57,10 @@ class IdleState(State):
             # 鼠标已很近且有动作意图，先警觉再行动
             sprite.fsm.transition_to("alert")
             return
-        # 长时间静止 → 睡
-        if ms.still_seconds >= config.IDLE_SLEEP_AFTER_S:
+        mouse_far = dist_to_mouse(sprite, ms) > config.ALERT_RADIUS_PX
+        # 鼠标长时间静止，或者猫在远处活动够久后自然犯困。
+        if (ms.still_seconds >= config.IDLE_SLEEP_AFTER_S or
+                (mouse_far and sprite.awake_seconds >= sprite.sleep_after_seconds)):
             sprite.fsm.transition_to("sleeping")
             return
 
@@ -68,10 +72,12 @@ class IdleState(State):
         self._idle_timer += dt
         if self._idle_timer >= self._next_action_at:
             self._idle_timer = 0.0
-            self._next_action_at = random.uniform(*config.IDLE_ACTION_INTERVAL_S)
-            # 50% 概率游走，50% 概率做小动作
-            if random.random() < 0.5:
-                self._start_wander(sprite)
+            self._next_action_at = self._next_interval(sprite)
+            if mouse_far:
+                self._start_autonomous_activity(sprite)
+            # 鼠标较近但无需捕猎时，动作收敛一些。
+            elif random.random() < 0.5:
+                self._start_wander(sprite, config.IDLE_WANDER_RADIUS_PX)
             else:
                 self._start_idle_action(sprite)
             return
@@ -83,16 +89,57 @@ class IdleState(State):
             )
             sprite.pose.tail_wag_phase += dt * 1.5
 
-    def _start_wander(self, sprite) -> None:
-        """在"家"点附近随机选一个目标走过去。"""
+    def _next_interval(self, sprite) -> float:
+        """活泼的猫更频繁地产生自己的活动。"""
+        base = random.uniform(*config.IDLE_ACTION_INTERVAL_S)
+        return base * (1.2 - 0.45 * sprite.personality.liveliness)
+
+    def _start_autonomous_activity(self, sprite) -> None:
+        roll = random.random()
+        poop_p = config.AUTONOMOUS_POOP_PROB
+        zoomies_p = config.AUTONOMOUS_ZOOMIES_PROB * (0.5 + sprite.personality.liveliness)
+        play_p = config.AUTONOMOUS_PLAY_PROB * (0.5 + sprite.personality.playfulness)
+        if roll < poop_p:
+            sprite.play(make_action("poop", sprite=sprite))
+        elif roll < poop_p + zoomies_p:
+            self._zoomies_remaining = random.randint(2, 4)
+            self._continue_zoomies(sprite)
+        elif roll < poop_p + zoomies_p + play_p:
+            # 没有猎物也会扑影子、拍空气、翻滚，自娱自乐。
+            target = self._random_target(sprite, 80)
+            sprite.play(make_action("play", sprite=sprite, target=target))
+        elif roll < 0.85:
+            self._start_wander(sprite, config.AUTONOMOUS_ROAM_RADIUS_PX)
+        else:
+            self._start_idle_action(sprite)
+
+    def _continue_zoomies(self, sprite) -> None:
+        if self._zoomies_remaining <= 0 or sprite.fsm.current_name != "idle":
+            return
+        self._zoomies_remaining -= 1
+        target = self._random_target(sprite, config.AUTONOMOUS_ROAM_RADIUS_PX)
+        sprite.play(
+            make_action("walk", sprite=sprite, target=target,
+                        speed_px_s=config.AUTONOMOUS_RUN_SPEED_PX_S),
+            on_done=lambda: self._continue_zoomies(sprite),
+        )
+
+    def _random_target(self, sprite, radius: float):
         angle = random.uniform(0, math.tau)
-        r = random.uniform(0, config.IDLE_WANDER_RADIUS_PX)
-        tx = self._home_x + math.cos(angle) * r
-        ty = self._home_y + math.sin(angle) * r
-        # 限制在屏幕内（粗略，由 window 尺寸裁剪）
-        tx = clamp(tx, 40, 4000)
-        ty = clamp(ty, 40, 3000)
-        sprite.play(make_action("walk", sprite=sprite, target=(tx, ty)))
+        r = random.uniform(radius * 0.35, radius)
+        tx = sprite.x + math.cos(angle) * r
+        ty = sprite.y + math.sin(angle) * r
+        left, top, right, bottom = sprite.world_bounds
+        margin = sprite.size_px * 0.55
+        return (
+            clamp(tx, left + margin, right - margin),
+            clamp(ty, top + margin, bottom - margin),
+        )
+
+    def _start_wander(self, sprite, radius: float) -> None:
+        """在"家"点附近随机选一个目标走过去。"""
+        target = self._random_target(sprite, radius)
+        sprite.play(make_action("walk", sprite=sprite, target=target))
 
     def _start_idle_action(self, sprite) -> None:
         """按权重选一个空闲小动作播放。groom 走独立状态。"""

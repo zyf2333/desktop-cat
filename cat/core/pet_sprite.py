@@ -10,6 +10,7 @@
 """
 from __future__ import annotations
 
+import random
 from typing import TYPE_CHECKING, Any, Optional
 
 from .action import Action
@@ -58,6 +59,17 @@ class PetSprite:
         # 避免"玩腻→idle→鼠标还在脚下→立刻又 playing"的死循环。
         self.play_cooldown_until: float = 0.0
 
+        # 窗口交互状态。拖拽期间暂停 Action/FSM，避免猫一边被拖一边自己跑。
+        self.is_hovered: bool = False
+        self.is_dragging: bool = False
+        self.world_bounds = (0.0, 0.0, 4000.0, 3000.0)
+
+        # 跨状态累计的清醒时间。舔毛、疯跑等动作不会把困意清零。
+        from cat import config
+        self.awake_seconds: float = 0.0
+        self.sleep_after_seconds: float = random.uniform(*config.AUTONOMOUS_SLEEP_AFTER_S)
+        self.droppings = []
+
     # ---- 生命周期 ----
     def start(self, initial_state: str) -> None:
         """启动状态机，进入初始状态。"""
@@ -66,6 +78,10 @@ class PetSprite:
     def update(self, dt: float, mouse_state) -> None:
         """每帧驱动：先推进当前 Action，再驱动 FSM。"""
         self.mouse_state = mouse_state
+        if self.is_dragging:
+            return
+        if self.fsm.current_name != "sleeping":
+            self.awake_seconds += dt
         action = self._action
         if action is not None:
             action.update(self, dt)
@@ -110,6 +126,7 @@ class PetSprite:
         painter.restore()
         # 特效粒子（相对猫中心坐标，由 Action 产生挂在 sprite 上）
         self._draw_particles(painter)
+        self._draw_droppings(painter)
 
     def _draw_particles(self, painter: "QPainter") -> None:
         """绘制挂在 sprite 上的特效粒子（如掉毛毛絮）。"""
@@ -131,6 +148,45 @@ class PetSprite:
             painter.drawEllipse(QPointF(0, 0), p.size, p.size * 0.5)
             painter.restore()
         painter.restore()
+
+    def _draw_droppings(self, painter: "QPainter") -> None:
+        if not self.droppings:
+            return
+        from PySide6.QtCore import QPointF, Qt
+        from PySide6.QtGui import QColor, QPainter, QPen
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+        for dropping in self.droppings:
+            outline = QColor(55, 30, 18)
+            brown = QColor(112, 67, 38)
+            painter.setPen(QPen(outline, 2))
+            painter.setBrush(brown)
+            s = dropping.size
+            painter.drawEllipse(QPointF(dropping.x, dropping.y), s, s * 0.52)
+            painter.drawEllipse(QPointF(dropping.x, dropping.y - s * 0.55), s * 0.7, s * 0.48)
+            painter.drawEllipse(QPointF(dropping.x, dropping.y - s), s * 0.4, s * 0.36)
+        painter.restore()
+
+    def dropping_at(self, x: float, y: float):
+        """返回命中的便便；从后往前找，优先处理最后绘制的一个。"""
+        for dropping in reversed(self.droppings):
+            rx = dropping.size * 1.35
+            ry = dropping.size * 1.8
+            if rx <= 0 or ry <= 0:
+                continue
+            dx = (x - dropping.x) / rx
+            dy = (y - (dropping.y - dropping.size * 0.45)) / ry
+            if dx * dx + dy * dy <= 1.0:
+                return dropping
+        return None
+
+    def remove_dropping_at(self, x: float, y: float) -> bool:
+        """只有显式点击命中时才移除便便。"""
+        dropping = self.dropping_at(x, y)
+        if dropping is None:
+            return False
+        self.droppings.remove(dropping)
+        return True
 
     # ---- 动作控制（供 State 调用）----
     def play(self, action: Action, on_done: Optional[Any] = None) -> None:
@@ -178,3 +234,47 @@ class PetSprite:
         if self.fsm is not None:
             # 睡觉时被点 → 醒来困惑
             self.fsm.transition_to("confused")
+
+    def on_hover(self, x: float, y: float) -> None:
+        """鼠标第一次移到宠物身上时，立刻抬头警觉。"""
+        if self.is_hovered or self.is_dragging:
+            return
+        self.is_hovered = True
+        self.facing = -1 if x < self.x else 1
+        # 让反应在下一帧绘制前就可见，同时进入完整捕猎前摇。
+        if hasattr(self.pose, "ear_alert"):
+            self.pose.ear_alert = 1.0
+        if hasattr(self.pose, "pupil_dilate"):
+            self.pose.pupil_dilate = 0.8
+        self.clear_action()
+        self.fsm.transition_to("alert")
+
+    def on_hover_leave(self) -> None:
+        self.is_hovered = False
+
+    def begin_drag(self) -> None:
+        """开始拖动；动作暂停，位置交给窗口层更新。"""
+        self.is_dragging = True
+        self.is_hovered = True
+        self.clear_action()
+        if hasattr(self.pose, "body_lift"):
+            self.pose.body_lift = 10.0
+        if hasattr(self.pose, "leg_stride"):
+            self.pose.leg_stride = 0.0
+
+    def drag_to(self, x: float, y: float) -> None:
+        if not self.is_dragging:
+            return
+        left, top, right, bottom = self.world_bounds
+        margin = self.size_px * 0.35
+        self.x = max(left + margin, min(right - margin, x))
+        self.y = max(top + margin, min(bottom - margin, y))
+
+    def end_drag(self) -> None:
+        """放下后短暂困惑，再恢复自主行为。"""
+        if not self.is_dragging:
+            return
+        self.is_dragging = False
+        if hasattr(self.pose, "body_lift"):
+            self.pose.body_lift = 0.0
+        self.fsm.transition_to("confused")

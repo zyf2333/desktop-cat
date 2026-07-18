@@ -10,14 +10,14 @@
 - zzz_01~04：呼噜气泡（4 帧，叠加在 sleep 上）
 - angry_01：生气（1 帧）
 
-动作映射（pose → 动画）：
-- asleep → sleep（睡觉时叠加 zzz 气泡）
+动作映射（pose → 动画 + 原始帧形变）：
+- asleep → zzz（素材本身已包含睡猫和 Z，只绘制一次）
 - 移动（leg_stride 大）→ walk_left / walk_right（按 facing 选，不翻转素材）
-- 扑击（body_lift/stretch 高）→ 暂用 walk（缺素材，后补；扑的位移仍由 pose 驱动）
-- 玩弄（playing）→ 暂用 angry（缺素材，后补）
-- 其他（待机/警觉/困惑）→ idle
+- 扑击（body_lift/stretch 高）→ walk 原始帧 + 横向拉伸/腾空
+- 玩弄（playing）→ idle 原始帧 + 摇摆/翻滚/拍击
+- 警觉/困惑 → idle 原始帧 + 绷紧/歪头
 
-缺素材的动作（扑/玩）后续补充 PNG 后，在 _pose_to_anim 改映射即可。
+复杂动作只形变原素材，脸、鼻子、项圈和像素轮廓不会在切换时突变。
 """
 from __future__ import annotations
 
@@ -46,7 +46,10 @@ def _pose_to_anim(pose: CatPose, facing: int) -> str:
     """
     # 睡觉
     if pose.asleep:
-        return "sleep"
+        return "zzz"
+    # 困惑沿用待机原帧，由绘制层负责歪头和摇晃。
+    if pose.confused:
+        return "idle"
     # 扑击/跳扑（空中或拉伸）——暂用 walk 代替（缺 pounce 素材）
     # 扑的位移由 pose.body_lift/stretch 驱动，视觉上仍能看到跳起
     if pose.body_lift > 5 or pose.body_stretch > 0.5:
@@ -55,9 +58,15 @@ def _pose_to_anim(pose: CatPose, facing: int) -> str:
     # 蓄力（pounce windup：压低+警觉）——暂用 idle
     if pose.body_squash > 0.4 and pose.pupil_dilate > 0.7:
         return "idle"
-    # 玩弄（playing 态，pose.on_back 或 grooming）——暂用 angry 代替（缺 play 素材）
-    if pose.on_back or pose.paw_raise > 0.1:
-        return "angry"
+    # 爪拍使用由原始 idle 帧制作的专用序列，不再运行时外挂胳膊。
+    if pose.paw_raise > 0.1:
+        return "swat_right" if facing >= 0 else "swat_left"
+    # 其他玩弄继续复用待机原帧，避免 angry 自带符号突兀。
+    if pose.on_back:
+        return "idle"
+    # 发现鼠标/悬停警觉：保持同一张脸，由形变表现突然绷紧。
+    if pose.alerted or pose.ear_alert > 0.65:
+        return "idle"
     # 移动中（走/跑/潜行/追逐）——按朝向选左右行走
     if pose.leg_stride > 0.2:
         return "walk_right" if facing >= 0 else "walk_left"
@@ -73,9 +82,7 @@ class CatSpriteModel(Model):
         self._frame_t = 0.0    # 动画帧计时器
         self._last_anim = None
         self._frames: List[QPixmap] = []
-        self._zzz_frames: List[QPixmap] = []
         self._frame_idx = 0
-        self._zzz_idx = 0
         self._fps = 8          # 精灵动画帧率（Desktop-Cat 风格偏慢更可爱）
         self._loaded = False
 
@@ -89,13 +96,11 @@ class CatSpriteModel(Model):
         if self._frame_t >= 1.0 / self._fps:
             self._frame_t = 0.0
             self._frame_idx += 1
-            self._zzz_idx += 1
 
     def draw(self, painter: QPainter, pose: Any, facing: int, t: float, size_px: int) -> None:
         assert isinstance(pose, CatPose)
         if not self._loaded:
             load_all()
-            self._zzz_frames = get_animation("zzz")
             self._loaded = True
 
         # 根据 pose 决定当前动画
@@ -111,7 +116,11 @@ class CatSpriteModel(Model):
             return
 
         # 帧索引循环
-        idx = self._frame_idx % len(frames)
+        if anim.startswith("swat_"):
+            # 与 SwatAction 的抬爪进度同步，抬起和收回都会逐帧变化。
+            idx = min(len(frames) - 1, int(max(0.0, min(1.0, pose.paw_raise)) * len(frames)))
+        else:
+            idx = self._frame_idx % len(frames)
         pm = frames[idx]
 
         # 缩放到 size_px（72x64 → 等比放大，宽度对齐 size_px）
@@ -124,27 +133,30 @@ class CatSpriteModel(Model):
 
         # 素材已分朝向，不需要镜像翻转
         painter.save()
-        # 呼吸微缩放（垂直）
+        # 复杂动作只形变原始帧，确保角色身份和像素细节完全连贯。
         breathe = 1.0 + 0.015 * math.sin(pose.breathe_phase)
-        # squash/stretch（扑击/蓄力的形变）
-        squash = 1.0 - 0.15 * max(0.0, min(1.0, pose.body_squash))
-        stretch = 1.0 + 0.1 * max(0.0, min(1.0, pose.body_stretch))
-        sy = breathe * squash * stretch
+        squash_amount = max(0.0, min(1.0, pose.body_squash))
+        stretch_amount = max(0.0, min(1.0, pose.body_stretch))
+        # 蓄力时压低；扑出时沿行进方向拉长。
+        sx = 1.0 + 0.18 * stretch_amount + 0.05 * squash_amount
+        sy = breathe * (1.0 - 0.14 * squash_amount - 0.07 * stretch_amount)
+        if pose.alerted and not pose.on_back:
+            sx *= 1.0 + 0.015 * math.sin(t * 16.0)
+            sy *= 1.025
+        if pose.on_back:
+            # 扭打表现为趴低、弹动，不再把整张猫图旋转九十度。
+            sx *= 1.08 + 0.03 * math.sin(t * 10.0)
+            sy *= 0.76 + 0.04 * math.sin(t * 12.0)
         # 居中绘制（猫脚在底部中心，所以 x 居中、y 底部对齐）
         # body_lift 让整张图上移（扑击跳起）
         lift = max(0.0, min(60.0, pose.body_lift)) * scale * 0.5
-        painter.translate(0, -lift)
-        painter.scale(1.0, sy)
+        # 只做小幅水平晃动；不再旋转整张图，避免猫身体突然歪倒。
+        confused_shift = math.sin(t * 9.0) * 3.0 if pose.confused else 0.0
+        action_shift = max(-0.15, min(0.15, pose.body_tilt)) * w * 0.22
+        alert_lift = 2.5 if pose.alerted and pose.body_lift <= 0 else 0.0
+        painter.translate(confused_shift + action_shift, -lift - alert_lift)
+        painter.scale(sx, sy)
         painter.drawPixmap(QPointF(-w / 2, -h / 2), scaled)
-
-        # 睡觉时叠加 zzz 气泡
-        if pose.asleep and self._zzz_frames:
-            zidx = self._zzz_idx % len(self._zzz_frames)
-            zpm = self._zzz_frames[zidx]
-            zscaled = zpm.scaled(w, h, Qt.AspectRatioMode.IgnoreAspectRatio,
-                                 Qt.TransformationMode.FastTransformation)
-            # zzz 显示在猫头上方右侧
-            painter.drawPixmap(QPointF(w * 0.15, -h * 0.9), zscaled)
 
         painter.restore()
 

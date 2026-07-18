@@ -12,6 +12,7 @@ from cat import config
 from cat.core.personality import Personality
 from cat.models.cat.actions import reset_to_stand
 from cat.models.cat.actions.pounce import PounceAction
+from cat.models.cat.actions.poop import PoopAction
 from cat.models.cat.actions.sit import SitAction
 from cat.models.cat.actions.walk import WalkAction
 from cat.models.cat.poses import CatPose
@@ -146,10 +147,34 @@ def test_sit_finishes_after_duration():
     assert sit.is_done() is True
 
 
+def test_poop_finishes_and_leaves_dropping_behind_cat():
+    sprite = FakeSprite(x=100.0, y=100.0)
+    sprite.facing = 1
+    action = PoopAction(duration=0.1)
+    sprite.play(action)
+    action.update(sprite, 0.11)
+    assert action.is_done() is True
+    assert len(sprite.droppings) == 1
+    dropping = sprite.droppings[0]
+    assert dropping.x < sprite.x
+    assert dropping.y > sprite.y
+    assert sprite.x - dropping.x >= 96 * 0.6
+
+
+def test_pixel_cat_dropping_uses_visible_tail_side():
+    from cat.core.model import get_model
+    from cat.core.pet_sprite import PetSprite
+    sprite = PetSprite(get_model("catsprite"), x=100, y=100, size_px=96)
+    action = PoopAction(duration=0.01)
+    action.start(sprite)
+    action.update(sprite, 0.02)
+    assert sprite.droppings[0].x > sprite.x
+
+
 def test_actions_registry_has_core_actions():
     from cat.models.cat.actions import REGISTRY
     for family in ["walk", "run", "pounce", "sit", "sleep", "groom", "stretch",
-                   "alert", "notice", "stalk", "chase", "confused"]:
+                   "alert", "notice", "stalk", "chase", "confused", "poop"]:
         assert family in REGISTRY, f"族 {family} 未注册"
         assert len(REGISTRY[family]) >= 1
 

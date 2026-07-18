@@ -72,6 +72,15 @@ IDLE_WANDER_SPEED_PX_S = 80       # IDLE 游走速度
 IDLE_ACTION_INTERVAL_S = (3, 8)   # 每隔 N 秒随机一个空闲小动作
 IDLE_SLEEP_AFTER_S = 45           # 鼠标静止超过 N 秒进入 SLEEPING
 
+# ---- 远离鼠标时的自主生活 ----
+AUTONOMOUS_ROAM_RADIUS_PX = 320    # 不关注鼠标时可在更大范围自由探索
+AUTONOMOUS_RUN_SPEED_PX_S = 230    # "疯跑"速度（比散步快、比追逐慢）
+AUTONOMOUS_ZOOMIES_PROB = 0.28     # 每次自主活动触发来回疯跑的概率
+AUTONOMOUS_PLAY_PROB = 0.22        # 自己扑影子/拍空气的概率
+AUTONOMOUS_POOP_PROB = 0.08        # 远离鼠标时，每轮自主活动排便概率
+AUTONOMOUS_SLEEP_AFTER_S = (20, 45)  # 即使远处鼠标一直动，也会自然犯困
+POOP_DURATION_S = (1.8, 2.8)       # 蹲下排便动作持续时间
+
 # ---- 调试 ----
 DEBUG = False                     # True 时绘制猫的锚点/状态名等辅助信息
 
